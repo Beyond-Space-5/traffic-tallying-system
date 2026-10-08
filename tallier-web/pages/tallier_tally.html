@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Field Traffic Tally</title>
+    <style>
+        :root {
+            --primary-color: #2b3e50;
+            --secondary-color: #1d6fa5;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --purple-color: #6f42c1;
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --border-color: #ced4da;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            margin: 0;
+            color: var(--primary-color);
+            font-size: 1.5rem;
+        }
+
+        .btn {
+            background-color: #495057;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn-primary {
+            background-color: var(--secondary-color);
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+        }
+
+        .btn-purple {
+            background-color: var(--purple-color);
+        }
+
+        .btn-submit {
+            background-color: #1a56db;
+            width: 100%;
+            padding: 12px;
+            font-size: 1.1rem;
+            margin-top: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        select, input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        .route-card {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        .route-title {
+            font-weight: bold;
+            font-size: 1.1rem;
+            color: var(--primary-color);
+            margin-bottom: 12px;
+        }
+
+        .category-input-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .categories-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 15px;
+        }
+
+        .category-box {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px;
+            background: #fdfdfd;
+            text-align: center;
+            position: relative;
+        }
+
+        .category-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .remove-cat-btn {
+            background: none;
+            border: none;
+            color: #aaa;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .remove-cat-btn:hover {
+            color: var(--danger-color);
+        }
+
+        .category-count {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--secondary-color);
+            margin-bottom: 10px;
+        }
+
+        .count-btn-group {
+            display: flex;
+            gap: 5px;
+        }
+
+        .count-btn-group button {
+            flex: 1;
+            padding: 6px;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .empty-notice {
+            color: #6c757d;
+            font-style: italic;
+            font-size: 0.9rem;
+        }
+
+        .placeholder-text {
+            text-align: center;
+            color: #6c757d;
+            padding: 30px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-row">
+        <h2>Field Traffic Tally</h2>
+        <div>
+            <a href="tallier_analytics.html" class="btn btn-primary" style="margin-right: 10px;">View Analytics Dashboard</a>
+            <a href="tallier_configuration.html" class="btn">← Back to Configuration</a>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="junctionSelect">Select Active Junction:</label>
+        <select id="junctionSelect" onchange="handleJunctionChange()">
+            <option value="">-- Choose a Junction --</option>
+        </select>
+    </div>
+
+    <div id="routesContainer">
+        <div class="placeholder-text" id="placeholderNotice">
+            Please select a junction above to begin route-based counting.
+        </div>
+    </div>
+
+    <button id="submitBtn" class="btn btn-submit" style="display: none;" onclick="submitCounts()">Save & Submit All Counts</button>
+</div>
+
+<script>
+    const username = localStorage.getItem('username') || 'guest';
+    const junctionsStorageKey = `junctions_${username}`;
+    const countsStorageKey = `traffic_counts_${username}`;
+    const activeJunctionStorageKey = `active_junction_id_${username}`;
+
+    let configuredJunctions = [];
+    let currentJunctionData = null;
+    let tallyState = {};
+
+    window.onload = function() {
+        try {
+            const savedJunctions = localStorage.getItem(junctionsStorageKey);
+            configuredJunctions = savedJunctions ? JSON.parse(savedJunctions) : [];
+        } catch (err) {
+            console.error('Error parsing saved junctions:', err);
+            configuredJunctions = [];
+        }
+
+        const select = document.getElementById('junctionSelect');
+        if (configuredJunctions.length === 0) {
+            select.innerHTML = '<option value="">-- No configured junctions found. Please configure one first --</option>';
+            return;
+        }
+
+        configuredJunctions.forEach(j => {
+            const option = document.createElement('option');
+            option.value = j.id;
+            
+            let routeList = j.routes || j.paths || [];
+            let routeString = routeList.map(r => typeof r === 'string' ? r : `${r.from} ➔ ${r.to}`).join(', ');
+            
+            option.textContent = `${j.name} [ ${routeString} ]`;
+            select.appendChild(option);
+        });
+
+        // Automatically restore previously selected junction and its live tally state
+        const savedJunctionId = localStorage.getItem(activeJunctionStorageKey);
+        if (savedJunctionId && configuredJunctions.some(j => j.id == savedJunctionId)) {
+            select.value = savedJunctionId;
+            loadJunctionRoutes(false); // Load without wiping saved temporary state
+        }
+    };
+
+    function handleJunctionChange() {
+        const junctionId = document.getElementById('junctionSelect').value;
+        localStorage.setItem(activeJunctionStorageKey, junctionId);
+        loadJunctionRoutes(true); // Fresh start when user manually switches junctions
+    }
+
+    function loadJunctionRoutes(isNewSelection = false) {
+        const junctionId = document.getElementById('junctionSelect').value;
+        const container = document.getElementById('routesContainer');
+        const submitBtn = document.getElementById('submitBtn');
+
+        if (!junctionId) {
+            container.innerHTML = `<div class="placeholder-text">Please select a junction above to begin route-based counting.</div>`;
+            submitBtn.style.display = 'none';
+            currentJunctionData = null;
+            return;
+        }
+
+        currentJunctionData = configuredJunctions.find(j => j.id == junctionId);
+        
+        let rawRoutes = currentJunctionData.routes || currentJunctionData.paths || [];
+        const normalizedRoutes = rawRoutes.map(r => typeof r === 'string' ? r : `${r.from} ➔ ${r.to}`);
+        
+        currentJunctionData.formattedRoutes = normalizedRoutes;
+
+        const tempStateKey = `temp_tally_state_${username}_${junctionId}`;
+
+        if (isNewSelection || !localStorage.getItem(tempStateKey)) {
+            tallyState = {};
+            normalizedRoutes.forEach(r => tallyState[r] = {});
+            saveTempTallyState();
+        } else {
+            try {
+                tallyState = JSON.parse(localStorage.getItem(tempStateKey)) || {};
+                normalizedRoutes.forEach(r => {
+                    if (!tallyState[r]) tallyState[r] = {};
+                });
+            } catch(e) {
+                tallyState = {};
+                normalizedRoutes.forEach(r => tallyState[r] = {});
+            }
+        }
+
+        let html = '';
+        
+        if (normalizedRoutes.length > 1) {
+            html += `
+                <div style="margin-bottom: 15px;">
+                    <button class="btn btn-purple" onclick="copyCategoriesToAll()">💾 Copy Categories to All Other Routes</button>
+                </div>
+            `;
+        }
+
+        normalizedRoutes.forEach((route, index) => {
+            const routeNum = index + 1;
+            html += `
+                <div class="route-card" id="route-card-${index}">
+                    <div class="route-title">Route ${routeNum}: ${route}</div>
+                    <div class="category-input-row">
+                        <input type="text" id="input-cat-${index}" placeholder="Enter vehicle category (e.g., Matatu, Car, Truck)">
+                        <button class="btn btn-primary" onclick="addCategory(${index})">+ Add Category</button>
+                    </div>
+                    <div id="categories-grid-${index}" class="categories-grid">
+                        <span class="empty-notice" id="empty-notice-${index}">No vehicle categories added for this route yet.</span>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+        submitBtn.style.display = 'block';
+
+        normalizedRoutes.forEach((_, index) => {
+            renderCategories(index);
+        });
+    }
+
+    function saveTempTallyState() {
+        if (currentJunctionData) {
+            const tempStateKey = `temp_tally_state_${username}_${currentJunctionData.id}`;
+            localStorage.setItem(tempStateKey, JSON.stringify(tallyState));
+        }
+    }
+
+    function addCategory(routeIndex, catNameOverride = null) {
+        const inputField = document.getElementById(`input-cat-${routeIndex}`);
+        const categoryName = catNameOverride || inputField.value.trim();
+
+        if (!categoryName) return;
+
+        const routeName = currentJunctionData.formattedRoutes[routeIndex];
+
+        if (tallyState[routeName][categoryName] !== undefined) {
+            if (!catNameOverride) alert("Category already exists for this route.");
+            return;
+        }
+
+        tallyState[routeName][categoryName] = 0;
+        if (!catNameOverride) inputField.value = '';
+
+        saveTempTallyState();
+        renderCategories(routeIndex);
+    }
+
+    function removeCategory(routeIndex, categoryName) {
+        const routeName = currentJunctionData.formattedRoutes[routeIndex];
+        delete tallyState[routeName][categoryName];
+        saveTempTallyState();
+        renderCategories(routeIndex);
+    }
+
+    function updateCount(routeIndex, categoryName, change) {
+        const routeName = currentJunctionData.formattedRoutes[routeIndex];
+        tallyState[routeName][categoryName] = Math.max(0, tallyState[routeName][categoryName] + change);
+        
+        document.getElementById(`count-val-${routeIndex}-${categoryName}`).textContent = tallyState[routeName][categoryName];
+        saveTempTallyState();
+    }
+
+    function renderCategories(routeIndex) {
+        const routeName = currentJunctionData.formattedRoutes[routeIndex];
+        const grid = document.getElementById(`categories-grid-${routeIndex}`);
+        if (!grid) return;
+        
+        const categories = Object.keys(tallyState[routeName] || {});
+
+        if (categories.length === 0) {
+            grid.innerHTML = `<span class="empty-notice" id="empty-notice-${routeIndex}">No vehicle categories added for this route yet.</span>`;
+            return;
+        }
+
+        let gridHtml = '';
+        categories.forEach(cat => {
+            const count = tallyState[routeName][cat];
+            gridHtml += `
+                <div class="category-box">
+                    <div class="category-header">
+                        <span>${cat}</span>
+                        <button class="remove-cat-btn" onclick="removeCategory(${routeIndex}, '${cat}')">&times;</button>
+                    </div>
+                    <div class="category-count" id="count-val-${routeIndex}-${cat}">${count}</div>
+                    <div class="count-btn-group">
+                        <button class="btn-danger" onclick="updateCount(${routeIndex}, '${cat}', -1)">-</button>
+                        <button class="btn-success" onclick="updateCount(${routeIndex}, '${cat}', 1)">+ Count</button>
+                    </div>
+                </div>
+            `;
+        });
+        grid.innerHTML = gridHtml;
+    }
+
+    function copyCategoriesToAll() {
+        if (!confirm("Are you sure you want to copy all vehicle categories from Route 1 to all other routes?")) return;
+
+        const route1Name = currentJunctionData.formattedRoutes[0];
+        const route1Categories = Object.keys(tallyState[route1Name]);
+
+        if (route1Categories.length === 0) {
+            alert("Route 1 has no categories to copy.");
+            return;
+        }
+
+        for (let i = 1; i < currentJunctionData.formattedRoutes.length; i++) {
+            route1Categories.forEach(cat => {
+                if (tallyState[currentJunctionData.formattedRoutes[i]][cat] === undefined) {
+                    tallyState[currentJunctionData.formattedRoutes[i]][cat] = 0;
+                }
+            });
+        }
+        
+        saveTempTallyState();
+        for (let i = 1; i < currentJunctionData.formattedRoutes.length; i++) {
+            renderCategories(i);
+        }
+        alert("Categories successfully copied to all other routes!");
+    }
+
+    function submitCounts() {
+        let totalCountAll = 0;
+        let submittedData = [];
+
+        for (let routeName in tallyState) {
+            for (let cat in tallyState[routeName]) {
+                totalCountAll += tallyState[routeName][cat];
+                submittedData.push({
+                    junction: currentJunctionData.name,
+                    route: routeName,
+                    category: cat,
+                    count: tallyState[routeName][cat],
+                    timestamp: new Date().toISOString()
+                });
+            }
+        }
+
+        if (totalCountAll === 0) {
+            alert("Please record at least one count greater than 0 before saving.");
+            return;
+        }
+
+        let existingCounts = [];
+        try {
+            existingCounts = JSON.parse(localStorage.getItem(countsStorageKey)) || [];
+        } catch(e) {
+            existingCounts = [];
+        }
+
+        localStorage.setItem(countsStorageKey, JSON.stringify(existingCounts.concat(submittedData)));
+        alert("Traffic counts successfully recorded!");
+        
+        // Removed localStorage.removeItem for temp_tally_state so your configuration & counts persist when navigating back
+        
+        window.location.href = 'tallier_analytics.html';
+    }
+</script>
+
+</body>
+</html>

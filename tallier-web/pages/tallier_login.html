@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Talliers Login</title>
+    <!-- Corrected relative path to the CSS folder -->
+    <link rel="stylesheet" href="../css/tallier-login.css">
+    <!-- FontAwesome for the password eye icon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <div class="login-container">
+        <h1>Talliers Login</h1>
+        
+        <form id="loginForm">
+            <div class="input-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" autocomplete="off" required>
+            </div>
+
+            <div class="input-group">
+                <label for="password">Password</label>
+                <div class="password-wrapper">
+                    <input type="password" id="password" name="password" required>
+                    <i class="fa-regular fa-eye" id="togglePassword"></i>
+                </div>
+            </div>
+
+            <button type="submit" class="login-btn">Log In</button>
+        </form>
+    </div>
+
+    <script>
+        // Password visibility toggle
+        const togglePassword = document.querySelector('#togglePassword');
+        const password = document.querySelector('#password');
+
+        togglePassword.addEventListener('click', function () {
+            const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+            password.setAttribute('type', type);
+            
+            this.classList.toggle('fa-eye');
+            this.classList.toggle('fa-eye-slash');
+        });
+
+        // Handle login submission, save username, and redirect to configuration page
+        const loginForm = document.querySelector('#loginForm');
+        loginForm.addEventListener('submit', function (e) {
+            e.preventDefault(); // Prevent default form refresh
+
+            const usernameInput = document.querySelector('#username').value.trim();
+            if (usernameInput) {
+                localStorage.setItem('username', usernameInput);
+            }
+
+            // Redirect to tallier configuration page
+            window.location.href = 'tallier_configuration.html';
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tallier Configuration - Traffic Tally System</title>
+    <link rel="stylesheet" href="../css/login.css">
+    <style>
+        body { display: block; padding: 20px; height: auto; background: #f1f5f9; font-family: sans-serif; }
+        .dashboard-container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 25px; }
+        .nav-buttons { display: flex; gap: 10px; align-items: center; }
+        .btn-tally { background-color: #16a34a; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+        .btn-tally:hover { background-color: #15803d; }
+        .btn-analytics { background-color: #7c3aed; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+        .btn-analytics:hover { background-color: #6d28d9; }
+        .btn-logout { background-color: #dc2626; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+        .btn-logout:hover { background-color: #b91c1c; }
+
+        .section-box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 20px; margin-bottom: 25px; }
+        .section-box h3 { margin-top: 0; color: #1e293b; margin-bottom: 15px; }
+
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.9rem; }
+        .form-group input { width: 100%; padding: 9px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; box-sizing: border-box; }
+
+        .route-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+        .route-row input { flex: 1; }
+        .btn-remove-route { background-color: #dc2626; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-remove-route:hover { background-color: #b91c1c; }
+
+        .btn-delete-junction { background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+        .btn-delete-junction:hover { background-color: #dc2626; }
+
+        .btn-secondary { background-color: #475569; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-bottom: 15px; }
+        .btn-secondary:hover { background-color: #334155; }
+
+        .btn-primary { background-color: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; }
+        .btn-primary:hover { background-color: #1d4ed8; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; border-radius: 6px; overflow: hidden; border: 1px solid #e2e8f0; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 0.95rem; }
+        th { background-color: #f1f5f9; color: #334155; font-weight: bold; }
+        tr:last-child td { border-bottom: none; }
+
+        /* Tallier Details Specific Styles */
+        .tallier-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; }
+        .tallier-info-display { background: #ecfdf5; border: 1px solid #10b981; padding: 15px; border-radius: 6px; margin-bottom: 25px; display: none; }
+        .tallier-info-display h4 { margin: 0 0 8px 0; color: #065f46; }
+        .tallier-info-display p { margin: 4px 0; font-size: 0.9rem; color: #047857; }
+        .btn-edit { background: none; border: none; color: #047857; text-decoration: underline; cursor: pointer; padding: 0; margin-top: 8px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="header">
+            <h2>Tallier Configuration</h2>
+            <div class="nav-buttons">
+                <a href="#" onclick="handleNavigation(event, 'tallier_analytics.html')" class="btn-analytics">📊 View Analytics</a>
+                <!-- Updated target link to tallier_tally.html -->
+                <a href="#" onclick="handleNavigation(event, 'tallier_tally.html')" class="btn-tally">Go to Field Tally →</a>
+                <button class="btn-logout" onclick="logoutUser()">Log Out</button>
+            </div>
+        </div>
+
+        <!-- Tallier Identification Section (Form) -->
+        <div id="tallier-section-box" class="section-box">
+            <h3>Tallier Identification Details</h3>
+            <form id="tallier-details-form" onsubmit="saveTallierDetails(event)">
+                <div class="tallier-grid">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="fullName">Full Name:</label>
+                        <input type="text" id="fullName" required placeholder="Enter full name">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="mobileNumber">Mobile Phone Number:</label>
+                        <input type="tel" id="mobileNumber" required placeholder="e.g., 0712345678" 
+                               oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="idNumber">ID Number:</label>
+                        <input type="text" id="idNumber" required placeholder="Enter ID number" 
+                               oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary" style="margin-top: 15px;">Save Tallier Details</button>
+            </form>
+        </div>
+
+        <!-- Saved Tallier Display Card (Appears after saving) -->
+        <div id="tallier-display-container" class="tallier-info-display">
+            <h4>Saved Tallier Session Details</h4>
+            <p><strong>Name:</strong> <span id="disp-name"></span></p>
+            <p><strong>Mobile:</strong> <span id="disp-mobile"></span></p>
+            <p><strong>ID Number:</strong> <span id="disp-id"></span></p>
+            <button type="button" class="btn-edit" onclick="editTallierDetails()">Edit Details</button>
+        </div>
+
+        <!-- Junction Configuration Section -->
+        <div class="section-box">
+            <h3>Configure Multi-Leg Junction</h3>
+            <form id="junction-form" onsubmit="createJunction(event)">
+                <div class="form-group">
+                    <label for="junction-name">Junction Name:</label>
+                    <input type="text" id="junction-name" required placeholder="e.g., Kenyatta Avenue Junction">
+                </div>
+
+                <label style="display: block; font-weight: 600; margin-bottom: 8px; font-size: 0.9rem;">Define Routes (From ➔ To):</label>
+                <div id="routes-container">
+                    <div class="route-row">
+                        <input type="text" placeholder="From (e.g., Yaya)" class="route-from" required>
+                        <span style="font-weight: bold; color: #64748b;">➔</span>
+                        <input type="text" placeholder="To (e.g., EM1)" class="route-to" required>
+                        <button type="button" class="btn-remove-route" onclick="removeRouteRow(this)" style="display:none;">×</button>
+                    </div>
+                </div>
+
+                <button type="button" class="btn-secondary" onclick="addRouteRow()">+ Add Another Route</button>
+                <button type="submit" class="btn-primary">Save Junction Configuration</button>
+            </form>
+        </div>
+
+        <!-- Configured Junctions List Section -->
+        <div class="section-box">
+            <h3>Configured Junctions & Routes</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Junction Name</th>
+                        <th>Routes Breakdown</th>
+                        <th>Main Exit</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="junctions-table-body">
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: #64748b;">Loading junctions...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Username-scoped storage keys
+        const username = localStorage.getItem('username') || 'guest';
+        const tallierStorageKey = `tallier_details_${username}`;
+        const junctionsStorageKey = `junctions_${username}`;
+
+        let configuredJunctions = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTallier = localStorage.getItem(tallierStorageKey);
+            if (savedTallier) {
+                const data = JSON.parse(savedTallier);
+                document.getElementById('fullName').value = data.fullName || '';
+                document.getElementById('mobileNumber').value = data.mobileNumber || '';
+                document.getElementById('idNumber').value = data.idNumber || '';
+                showTallierDisplay(data);
+            }
+            fetchJunctions();
+        });
+
+        // Strict Navigation Guard blocking access if details or junctions are not saved
+        function handleNavigation(event, targetUrl) {
+            event.preventDefault();
+            const savedTallier = localStorage.getItem(tallierStorageKey);
+
+            if (!savedTallier) {
+                alert('Access Denied: You must fill in and save your Tallier Identification Details before proceeding to Field Tally.');
+                document.getElementById('tallier-section-box').scrollIntoView({ behavior: 'smooth' });
+                return;
+            }
+
+            if (!configuredJunctions || configuredJunctions.length === 0) {
+                alert('Access Denied: You must configure and save at least one Multi-Leg Junction before proceeding to Field Tally.');
+                document.getElementById('junction-form').scrollIntoView({ behavior: 'smooth' });
+                return;
+            }
+
+            window.location.href = targetUrl;
+        }
+
+        function saveTallierDetails(e) {
+            e.preventDefault();
+            const tallierData = {
+                fullName: document.getElementById('fullName').value.trim(),
+                mobileNumber: document.getElementById('mobileNumber').value.trim(),
+                idNumber: document.getElementById('idNumber').value.trim()
+            };
+
+            localStorage.setItem(tallierStorageKey, JSON.stringify(tallierData));
+            showTallierDisplay(tallierData);
+            alert('Tallier details saved successfully!');
+        }
+
+        function showTallierDisplay(data) {
+            document.getElementById('disp-name').textContent = data.fullName;
+            document.getElementById('disp-mobile').textContent = data.mobileNumber;
+            document.getElementById('disp-id').textContent = data.idNumber;
+
+            // Hide the input form box and show the saved summary display card
+            document.getElementById('tallier-section-box').style.display = 'none';
+            document.getElementById('tallier-display-container').style.display = 'block';
+        }
+
+        function editTallierDetails() {
+            // Hide the summary card and bring back the input form for editing
+            document.getElementById('tallier-display-container').style.display = 'none';
+            document.getElementById('tallier-section-box').style.display = 'block';
+            document.getElementById('tallier-section-box').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function logoutUser() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('username');
+            localStorage.removeItem('role');
+            window.location.href = 'login.html';
+        }
+
+        function addRouteRow() {
+            const container = document.getElementById('routes-container');
+            const row = document.createElement('div');
+            row.className = 'route-row';
+            row.innerHTML = `
+                <input type="text" placeholder="From (e.g., Yaya)" class="route-from" required>
+                <span style="font-weight: bold; color: #64748b;">➔</span>
+                <input type="text" placeholder="To (e.g., Kawangware)" class="route-to" required>
+                <button type="button" class="btn-remove-route" onclick="removeRouteRow(this)">×</button>
+            `;
+            container.appendChild(row);
+            updateRemoveButtons();
+        }
+
+        function removeRouteRow(btn) {
+            const confirmed = confirm('Are you sure you want to remove this route row?');
+            if (confirmed) {
+                btn.parentElement.remove();
+                updateRemoveButtons();
+            }
+        }
+
+        function updateRemoveButtons() {
+            const rows = document.querySelectorAll('.route-row');
+            rows.forEach((row) => {
+                const removeBtn = row.querySelector('.btn-remove-route');
+                if (rows.length > 1) {
+                    removeBtn.style.display = 'block';
+                } else {
+                    removeBtn.style.display = 'none';
+                }
+            });
+        }
+
+        function fetchJunctions() {
+            const tableBody = document.getElementById('junctions-table-body');
+            try {
+                const savedJunctions = localStorage.getItem(junctionsStorageKey);
+                configuredJunctions = savedJunctions ? JSON.parse(savedJunctions) : [];
+
+                if (configuredJunctions.length > 0) {
+                    tableBody.innerHTML = '';
+                    configuredJunctions.forEach(j => {
+                        let routesHtml = '<ul style="margin: 0; padding-left: 15px;">';
+                        const routeList = j.routes || j.paths;
+                        if (routeList && Array.isArray(routeList)) {
+                            routeList.forEach(p => {
+                                routesHtml += `<li>${p.from} ➔ ${p.to}</li>`;
+                            });
+                        }
+                        routesHtml += '</ul>';
+
+                        tableBody.innerHTML += `
+                            <tr>
+                                <td><strong>${j.name}</strong></td>
+                                <td>${routesHtml}</td>
+                                <td><span style="background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-weight: 600;">${j.main_exit_road || routeList?.[0]?.to || 'N/A'}</span></td>
+                                <td>
+                                    <button class="btn-delete-junction" onclick="deleteJunction(${j.id}, '${j.name}')">Delete</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #64748b;">No junctions configured yet.</td></tr>`;
+                }
+            } catch (err) {
+                console.error('Error loading junctions:', err);
+                configuredJunctions = [];
+                tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #dc2626;">Error loading junctions.</td></tr>`;
+            }
+        }
+
+        function deleteJunction(id, name) {
+            const confirmed = confirm(`Are you sure you want to delete the junction "${name}"? This action cannot be undone.`);
+            if (!confirmed) return;
+
+            try {
+                configuredJunctions = configuredJunctions.filter(j => j.id !== id);
+                localStorage.setItem(junctionsStorageKey, JSON.stringify(configuredJunctions));
+                alert('Junction deleted successfully.');
+                fetchJunctions();
+            } catch (err) {
+                console.error('Error deleting junction:', err);
+                alert('Error while deleting junction.');
+            }
+        }
+
+        function createJunction(e) {
+            e.preventDefault();
+            const name = document.getElementById('junction-name').value.trim();
+
+            const fromInputs = document.querySelectorAll('.route-from');
+            const toInputs = document.querySelectorAll('.route-to');
+
+            const newRoutes = [];
+            for (let i = 0; i < fromInputs.length; i++) {
+                newRoutes.push({
+                    from: fromInputs[i].value.trim(),
+                    to: toInputs[i].value.trim()
+                });
+            }
+
+            try {
+                const newJunction = {
+                    id: Date.now(),
+                    name: name,
+                    paths: newRoutes,
+                    main_exit_road: newRoutes[0]?.to || 'N/A'
+                };
+
+                configuredJunctions.push(newJunction);
+                localStorage.setItem(junctionsStorageKey, JSON.stringify(configuredJunctions));
+
+                alert('Junction configured successfully!');
+                document.getElementById('junction-form').reset();
+                document.getElementById('routes-container').innerHTML = `
+                    <div class="route-row">
+                        <input type="text" placeholder="From (e.g., Yaya)" class="route-from" required>
+                        <span style="font-weight: bold; color: #64748b;">➔</span>
+                        <input type="text" placeholder="To (e.g., EM1)" class="route-to" required>
+                        <button type="button" class="btn-remove-route" onclick="removeRouteRow(this)" style="display:none;">×</button>
+                    </div>
+                `;
+                fetchJunctions();
+            } catch (err) {
+                console.error('Error creating junction:', err);
+                alert('Error while saving junction.');
+            }
+        }
+    </script>
+</body>
+</html>

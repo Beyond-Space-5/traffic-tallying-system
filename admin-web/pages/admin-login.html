@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Tallying System - Admin Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/admin-login.css">
+</head>
+<body>
+    <div class="auth-container">
+        <!-- Toast Notification Box -->
+        <div id="toast" class="toast hidden"></div>
+
+        <!-- VIEW 1: ADMIN PORTAL LOGIN -->
+        <div id="login-view" class="auth-card">
+            <div class="auth-header">
+                <h2>Admin Portal Login</h2>
+                <p>Enter your admin credentials to access the dashboard</p>
+            </div>
+
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="login-username">Admin Username</label>
+                    <input type="text" id="login-username" placeholder="Enter username" required autocomplete="username">
+                </div>
+
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="login-password" placeholder="Enter password" required autocomplete="current-password">
+                        <i class="fa-regular fa-eye toggle-password" onclick="togglePasswordVisibility('login-password', this)"></i>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Login to Dashboard</button>
+            </form>
+
+            <div class="auth-footer-links">
+                <a href="#" onclick="switchView('register-view')">Create Account</a>
+                <a href="#" onclick="switchView('forgot-view')">Forgot Password?</a>
+            </div>
+        </div>
+
+        <!-- VIEW 2: CREATE ACCOUNT -->
+        <div id="register-view" class="auth-card hidden">
+            <div class="auth-header">
+                <h2>Create Account</h2>
+                <p>Set up a new admin profile</p>
+            </div>
+
+            <form id="register-form" onsubmit="handleRegister(event)">
+                <div class="form-group">
+                    <label for="reg-username">Choose Username</label>
+                    <input type="text" id="reg-username" placeholder="Choose a username" required autocomplete="username">
+                </div>
+
+                <div class="form-group">
+                    <label for="reg-email">Email Address</label>
+                    <input type="email" id="reg-email" placeholder="Enter your email" required autocomplete="email">
+                </div>
+
+                <div class="form-group">
+                    <label for="reg-password">Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="reg-password" placeholder="Create password" required autocomplete="new-password">
+                        <i class="fa-regular fa-eye toggle-password" onclick="togglePasswordVisibility('reg-password', this)"></i>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-success">Register Admin Account</button>
+            </form>
+
+            <div class="auth-footer-links single">
+                <a href="#" onclick="switchView('login-view')">&larr; Back to Login</a>
+            </div>
+        </div>
+
+        <!-- VIEW 3: RESET PASSWORD -->
+        <div id="forgot-view" class="auth-card hidden">
+            <div class="auth-header">
+                <h2>Reset Password</h2>
+                <p>We will send recovery instructions to your email</p>
+            </div>
+
+            <form id="forgot-form" onsubmit="handleForgotPassword(event)">
+                <div class="form-group">
+                    <label for="forgot-identifier">Admin Email or Username</label>
+                    <input type="text" id="forgot-identifier" placeholder="Enter your registered email" required autocomplete="email">
+                </div>
+
+                <button type="submit" class="btn btn-dark">Send Reset Instructions</button>
+            </form>
+
+            <div class="auth-footer-links single">
+                <a href="#" onclick="switchView('login-view')">&larr; Back to Login</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- SIMULATED EMAIL & RESET PASSWORD MODAL -->
+    <div id="reset-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <i class="fa-solid fa-envelope-circle-check"></i>
+                <h3>Simulated Email Received</h3>
+                <p>This is what the admin receives in their inbox.</p>
+            </div>
+            <div class="email-preview-box">
+                <p><strong>To:</strong> <span id="email-recipient">admin@example.com</span></p>
+                <p><strong>Subject:</strong> Password Reset Request</p>
+                <hr>
+                <p>Hello,</p>
+                <p>You requested a password reset for your Traffic Tallying System Admin account. Click the secure button below to enter your new password:</p>
+                <button class="btn btn-primary btn-sm" onclick="openNewPasswordPrompt()">Open Secure Reset Link</button>
+            </div>
+            <button class="btn btn-outline" onclick="closeModal('reset-modal')">Close Window</button>
+        </div>
+    </div>
+
+    <!-- NEW PASSWORD PROMPT MODAL -->
+    <div id="new-password-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <i class="fa-solid fa-key"></i>
+                <h3>Set New Password</h3>
+                <p>Please enter and confirm your new admin password.</p>
+            </div>
+            <form onsubmit="handleSaveNewPassword(event)">
+                <div class="form-group text-left">
+                    <label for="new-pass">New Password</label>
+                    <input type="password" id="new-pass" placeholder="Enter new password" required>
+                </div>
+                <div class="form-group text-left">
+                    <label for="confirm-pass">Confirm Password</label>
+                    <input type="password" id="confirm-pass" placeholder="Confirm new password" required>
+                </div>
+                <button type="submit" class="btn btn-success">Update Password & Login</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Initialize default demo account if none exists in localStorage
+        if (!localStorage.getItem('tts_admin')) {
+            localStorage.setItem('tts_admin', JSON.stringify({
+                username: 'admin',
+                email: 'admin@traffic.com',
+                password: 'password123'
+            }));
+        }
+
+        let currentResetUser = '';
+
+        function switchView(viewId) {
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('register-view').classList.add('hidden');
+            document.getElementById('forgot-view').classList.add('hidden');
+            document.getElementById(viewId).classList.remove('hidden');
+        }
+
+        function togglePasswordVisibility(fieldId, icon) {
+            const field = document.getElementById(fieldId);
+            if (field.type === 'password') {
+                field.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                field.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
+
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${isError ? 'error' : 'success'}`;
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 4000);
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const usernameInput = document.getElementById('login-username').value.trim();
+            const passwordInput = document.getElementById('login-password').value;
+
+            const storedAdmin = JSON.parse(localStorage.getItem('tts_admin'));
+
+            if (storedAdmin && storedAdmin.username === usernameInput && storedAdmin.password === passwordInput) {
+                showToast('Login successful! Redirecting to dashboard...');
+                setTimeout(() => {
+                    window.location.href = 'admin_dashboard.html';
+                }, 1200);
+            } else {
+                showToast('Invalid username or password. Please try again.', true);
+            }
+        }
+
+        function handleRegister(e) {
+            e.preventDefault();
+            const username = document.getElementById('reg-username').value.trim();
+            const email = document.getElementById('reg-email').value.trim();
+            const password = document.getElementById('reg-password').value;
+
+            localStorage.setItem('tts_admin', JSON.stringify({ username, email, password }));
+            showToast('Admin account created successfully! You can now log in.');
+            document.getElementById('register-form').reset();
+            switchView('login-view');
+        }
+
+        function handleForgotPassword(e) {
+            e.preventDefault();
+            const identifier = document.getElementById('forgot-identifier').value.trim();
+            const storedAdmin = JSON.parse(localStorage.getItem('tts_admin'));
+
+            if (storedAdmin && (storedAdmin.username === identifier || storedAdmin.email === identifier)) {
+                currentResetUser = storedAdmin.email;
+                document.getElementById('email-recipient').textContent = storedAdmin.email;
+                document.getElementById('reset-modal').classList.remove('hidden');
+            } else {
+                showToast('No account found matching that username or email.', true);
+            }
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        function openNewPasswordPrompt() {
+            closeModal('reset-modal');
+            document.getElementById('new-password-modal').classList.remove('hidden');
+        }
+
+        function handleSaveNewPassword(e) {
+            e.preventDefault();
+            const newPass = document.getElementById('new-pass').value;
+            const confirmPass = document.getElementById('confirm-pass').value;
+
+            if (newPass !== confirmPass) {
+                showToast('Passwords do not match. Please try again.', true);
+                return;
+            }
+
+            let storedAdmin = JSON.parse(localStorage.getItem('tts_admin')) || {};
+            storedAdmin.password = newPass;
+            localStorage.setItem('tts_admin', JSON.stringify(storedAdmin));
+
+            closeModal('new-password-modal');
+            showToast('Password updated successfully! Please log in with your new password.');
+            switchView('login-view');
+        }
+    </script>
+</body>
+</html>
