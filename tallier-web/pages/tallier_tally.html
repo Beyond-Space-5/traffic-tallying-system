@@ -551,15 +551,20 @@
     }
 
     async function submitCounts() {
+        if (!currentJunctionData) {
+            alert("Please select a junction first.");
+            return;
+        }
+
         let totalNewCount = 0;
         let submittedData = [];
         const lastSavedKey = `last_saved_state_${username}_${currentJunctionData.id}`;
 
-        // Calculate only the incremental difference (delta) since the last save
+        // Calculate incremental difference (delta) since last save
         for (let routeName in tallyState) {
             if (!lastSavedState[routeName]) lastSavedState[routeName] = {};
             for (let cat in tallyState[routeName]) {
-                const currentVal = tallyState[routeName][cat];
+                const currentVal = tallyState[routeName][cat] || 0;
                 const prevSavedVal = lastSavedState[routeName][cat] || 0;
                 const delta = currentVal - prevSavedVal;
 
@@ -567,42 +572,52 @@
                     totalNewCount += delta;
                     submittedData.push({
                         junction: currentJunctionData.name,
+                        junction_name: currentJunctionData.name,
                         route: routeName,
                         category: cat,
-                        count: delta, // Push only the new count difference
+                        vehicle: cat,
+                        type: cat,
+                        count: delta,
                         timestamp: new Date().toISOString()
                     });
                 }
             }
         }
 
-        if (totalNewCount === 0) {
-            alert("No new counts to save. Please record additional counts first.");
-            return;
-        }
-
-        await pushCountsToBackend(true);
-
-        let existingCounts = [];
         try {
-            existingCounts = JSON.parse(localStorage.getItem(countsStorageKey)) || [];
-        } catch(e) {
-            existingCounts = [];
+            await pushCountsToBackend(true);
+        } catch (err) {
+            console.error("Backend sync failed:", err);
         }
 
-        // Append only the new incremental records
-        localStorage.setItem(countsStorageKey, JSON.stringify(existingCounts.concat(submittedData)));
+        if (submittedData.length > 0) {
+            // Save to both user-specific key and generic key so analytics reads it successfully
+            const genericCountsKey = 'traffic_counts';
+            
+            let existingCounts = [];
+            let existingGenericCounts = [];
+            try {
+                existingCounts = JSON.parse(localStorage.getItem(countsStorageKey)) || [];
+            } catch(e) { existingCounts = []; }
 
-        // Update lastSavedState to current tally values so subsequent saves only capture new increments
-        for (let routeName in tallyState) {
-            if (!lastSavedState[routeName]) lastSavedState[routeName] = {};
-            for (let cat in tallyState[routeName]) {
-                lastSavedState[routeName][cat] = tallyState[routeName][cat];
+            try {
+                existingGenericCounts = JSON.parse(localStorage.getItem(genericCountsKey)) || [];
+            } catch(e) { existingGenericCounts = []; }
+
+            localStorage.setItem(countsStorageKey, JSON.stringify(existingCounts.concat(submittedData)));
+            localStorage.setItem(genericCountsKey, JSON.stringify(existingGenericCounts.concat(submittedData)));
+
+            // Update lastSavedState tracking
+            for (let routeName in tallyState) {
+                if (!lastSavedState[routeName]) lastSavedState[routeName] = {};
+                for (let cat in tallyState[routeName]) {
+                    lastSavedState[routeName][cat] = tallyState[routeName][cat];
+                }
             }
+            localStorage.setItem(lastSavedKey, JSON.stringify(lastSavedState));
         }
-        localStorage.setItem(lastSavedKey, JSON.stringify(lastSavedState));
 
-        alert("New traffic counts successfully recorded and synced!");
+        // Instantly navigate to analytics page
         window.location.href = 'tallier_analytics.html';
     }
 </script>
