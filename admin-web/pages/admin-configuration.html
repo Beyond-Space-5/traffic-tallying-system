@@ -34,23 +34,19 @@
     <div class="app-container">
         <div id="toast" class="toast hidden"></div>
 
-        <!-- TOP NAVIGATION BAR -->
         <header class="top-navbar">
             <div class="nav-brand">
                 <i class="fa-solid fa-traffic-light"></i>
                 <span>Admin Configuration</span>
             </div>
             <div class="nav-actions">
-                <!-- Fixed link matching admin-dashboard.html (with hyphen) -->
                 <a href="admin-dashboard.html" class="btn btn-outline btn-sm">
                     <i class="fa-solid fa-chart-pie"></i> Dashboard
                 </a>
             </div>
         </header>
 
-        <!-- MAIN CONTENT AREA -->
         <main class="main-content">
-            <!-- SECTION 1: ANALYTICS INTERVAL CONFIGURATION -->
             <section class="config-section">
                 <div class="section-header-simple">
                     <h2>Analytics Interval</h2>
@@ -67,7 +63,6 @@
                 </div>
             </section>
 
-            <!-- SECTION 2: TALLIER MANAGEMENT -->
             <section class="config-section">
                 <div class="section-header-simple flex-row">
                     <div>
@@ -92,7 +87,6 @@
                             </tr>
                         </thead>
                         <tbody id="talliers-table-body">
-                            <!-- Populated dynamically -->
                         </tbody>
                     </table>
                 </div>
@@ -100,7 +94,6 @@
         </main>
     </div>
 
-    <!-- CREATE TALLIER MODAL -->
     <div id="tallier-modal" class="modal-overlay hidden">
         <div class="modal-card">
             <h3 id="modal-title">Create New Tallier</h3>
@@ -132,7 +125,9 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:3000/api';
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:3000/api'
+            : 'https://your-production-backend-url.com/api';
 
         window.addEventListener('DOMContentLoaded', async () => {
             try {

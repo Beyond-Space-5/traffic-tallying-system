@@ -6,6 +6,13 @@
     <title>Talliers Login</title>
     <link rel="stylesheet" href="../css/tallier-login.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="manifest" href="../manifest.json">
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('../sw.js')
+          .then(() => console.log('Service Worker Registered'));
+      }
+    </script>
 </head>
 <body>
 
@@ -31,7 +38,9 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:3000/api';
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:3000/api'
+            : 'https://your-production-backend-url.com/api';
 
         const togglePassword = document.querySelector('#togglePassword');
         const password = document.querySelector('#password');

@@ -4,28 +4,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - Tallier Analytics & Results Dashboard</title>
-    <!-- Pointing to your existing tallier analytics stylesheet to maintain 100% identical styling -->
     <link rel="stylesheet" href="../../tallier-web/css/tallier_analytics.css">
-    <!-- Chart.js CDN for visualising tally results -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .btn-excel {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+        }
+        .btn-excel:hover { background-color: #218838; }
+    </style>
 </head>
 <body>
 
 <div class="dashboard-container">
-    <!-- Header Row with corrected link pointing to admin-dashboard.html -->
     <div class="header-row">
         <h2>Admin Analytics Inspection</h2>
         <div class="nav-btn-group">
+            <button onclick="downloadExcelReport()" class="btn-excel">📥 Download Excel Report</button>
             <a href="admin-dashboard.html" class="btn btn-primary">Back to Admin Dashboard</a>
         </div>
     </div>
 
-    <!-- Toolbar Row -->
     <div class="toolbar-row">
         <span class="subtitle" id="userSubtitle">Viewing submitted traffic counts for tallier: <span id="displayUsername" style="font-weight: bold; color: #1d6fa5;"></span> (Interval: <span id="displayInterval">15</span> mins)</span>
     </div>
 
-    <!-- Detailed Analytics Table Section -->
     <div class="card table-card">
         <div class="table-responsive">
             <table class="analytics-table" id="analyticsTable">
@@ -47,7 +59,6 @@
         </div>
     </div>
 
-    <!-- Analytics Chart Section -->
     <div class="card chart-card">
         <h3>Visual Breakdown by Route & Category</h3>
         <div class="chart-container">
@@ -57,19 +68,19 @@
 </div>
 
 <script>
-    const API_BASE = 'http://localhost:3000/api';
+    const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:3000/api'
+        : 'https://your-production-backend-url.com/api';
     
-    // Extract the specific tallier ID passed via URL query parameters from the admin dashboard card
     const urlParams = new URLSearchParams(window.location.search);
     const targetTallierId = urlParams.get('tallier_id') || 'guest';
 
     let tallyChartInstance = null;
-    let configIntervalMinutes = 15; // Default fallback
+    let configIntervalMinutes = 15;
 
     window.onload = async function() {
         document.getElementById('displayUsername').textContent = targetTallierId;
         
-        // Fetch configured interval from backend
         try {
             const res = await fetch(`${API_BASE}/config`);
             const data = await res.json();
@@ -99,6 +110,28 @@
         }
     }
 
+    async function downloadExcelReport() {
+        try {
+            const response = await fetch(`${API_BASE}/tallies/${encodeURIComponent(targetTallierId)}/export-excel`);
+            if (!response.ok) throw new Error('Failed to generate Excel report');
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            
+            const todayStr = new Date().toISOString().split('T')[0];
+            a.download = `${targetTallierId}_Analytics_${todayStr}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Excel export error:', err);
+            alert('Could not download Excel report.');
+        }
+    }
+
     function loadAndDisplayAnalytics(records) {
         const tbody = document.getElementById('analyticsTableBody');
         if (!records || records.length === 0) {
@@ -107,10 +140,8 @@
             return;
         }
 
-        // Sort records chronologically for interval grouping
         records.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-        // Group records by Junction
         let groupedByJunction = {};
         records.forEach(rec => {
             const junction = rec.junction || 'Unknown Junction';
@@ -133,8 +164,6 @@
 
             let junctionTotal = 0;
             let cumulativeRunningTotal = 0;
-            
-            // Interval grouping helper variables based on configIntervalMinutes
             let intervalMs = configIntervalMinutes * 60 * 1000;
             let sessionStartTime = jRecords.length > 0 ? new Date(jRecords[0].timestamp).getTime() : Date.now();
             let currentIntervalEnd = sessionStartTime + intervalMs;
@@ -147,7 +176,6 @@
 
                 const recTime = rec.timestamp ? new Date(rec.timestamp).getTime() : Date.now();
 
-                // Check if we crossed an interval boundary
                 if (recTime >= currentIntervalEnd) {
                     html += `
                         <tr style="background-color: #eef2f7; font-weight: bold; border-top: 2px dashed #1d6fa5;">

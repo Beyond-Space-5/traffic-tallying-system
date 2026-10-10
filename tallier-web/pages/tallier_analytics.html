@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tally Analytics & Results Dashboard</title>
     <link rel="stylesheet" href="../css/tallier_analytics.css">
+    <link rel="manifest" href="../manifest.json">
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('../sw.js')
+          .then(() => console.log('Service Worker Registered'));
+      }
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -52,9 +59,10 @@
 </div>
 
 <script>
-    const API_BASE = 'http://localhost:3000/api';
+    const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:3000/api'
+        : 'https://your-production-backend-url.com/api';
     
-    // Support both individual tallier login and admin view via ?tallier_id=...
     const urlParams = new URLSearchParams(window.location.search);
     const targetTallierId = urlParams.get('tallier_id') || localStorage.getItem('username') || 'guest';
 

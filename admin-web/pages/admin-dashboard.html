@@ -128,7 +128,9 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:3000/api';
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:3000/api'
+            : 'https://your-production-backend-url.com/api';
 
         window.onload = function() {
             renderAdminDashboard();
@@ -204,7 +206,6 @@
         }
 
         function openTallierAnalytics(username) {
-            // Opens the independent standalone admin analytics page with the selected tallier ID
             window.location.href = `admin_tallier_analytics.html?tallier_id=${encodeURIComponent(username)}`;
         }
     </script>

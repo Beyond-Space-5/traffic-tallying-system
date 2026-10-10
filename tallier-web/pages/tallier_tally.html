@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Field Traffic Tally</title>
+    <link rel="manifest" href="../manifest.json">
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('../sw.js')
+          .then(() => console.log('Service Worker Registered'));
+      }
+    </script>
     <style>
         :root {
             --primary-color: #2b3e50;
@@ -177,7 +184,10 @@
 </div>
 
 <script>
-    const API_BASE = 'http://localhost:3000/api';
+    const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:3000/api'
+        : 'https://your-production-backend-url.com/api';
+
     const username = localStorage.getItem('username') || 'guest';
     const junctionsStorageKey = `junctions_${username}`;
     const activeJunctionStorageKey = `active_junction_id_${username}`;
@@ -205,7 +215,6 @@
             const option = document.createElement('option');
             option.value = j.id;
             let routeList = j.routes || j.paths || [];
-            // Fixed raw &rarr; text display to use clean arrow symbol
             let routeString = routeList.map(r => typeof r === 'string' ? r : `${r.from} ➔ ${r.to}`).join(', ');
             option.textContent = `${j.name} [ ${routeString} ]`;
             select.appendChild(option);
@@ -326,7 +335,6 @@
         renderCategories(routeIndex);
     }
 
-    // Automatically save and sync deltas instantly on every count button press (+ / -)
     function updateCount(routeIndex, categoryName, change) {
         const routeName = currentJunctionData.formattedRoutes[routeIndex];
         tallyState[routeName][categoryName] = Math.max(0, tallyState[routeName][categoryName] + change);
@@ -334,7 +342,6 @@
         document.getElementById(`count-val-${routeIndex}-${categoryName}`).textContent = tallyState[routeName][categoryName];
         saveTempTallyState();
 
-        // Trigger automatic backend sync immediately on count click
         autoSyncDeltas();
     }
 
@@ -440,7 +447,6 @@
         alert("Categories successfully copied!");
     }
 
-    // Manual Save & Submit button redirects directly to analytics with confirmation toast
     async function submitCounts() {
         await autoSyncDeltas();
         showToast("All counts successfully saved and synchronized!");

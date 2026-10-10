@@ -43,7 +43,6 @@
         th { background-color: #f1f5f9; color: #334155; font-weight: bold; }
         tr:last-child td { border-bottom: none; }
 
-        /* Tallier Details Specific Styles */
         .tallier-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; }
         .tallier-info-display { background: #ecfdf5; border: 1px solid #10b981; padding: 15px; border-radius: 6px; margin-bottom: 25px; display: none; }
         .tallier-info-display h4 { margin: 0 0 8px 0; color: #065f46; }
@@ -57,13 +56,11 @@
             <h2>Tallier Configuration</h2>
             <div class="nav-buttons">
                 <a href="#" onclick="handleNavigation(event, 'tallier_analytics.html')" class="btn-analytics">📊 View Analytics</a>
-                <!-- Updated target link to tallier_tally.html -->
                 <a href="#" onclick="handleNavigation(event, 'tallier_tally.html')" class="btn-tally">Go to Field Tally →</a>
                 <button class="btn-logout" onclick="logoutUser()">Log Out</button>
             </div>
         </div>
 
-        <!-- Tallier Identification Section (Form) -->
         <div id="tallier-section-box" class="section-box">
             <h3>Tallier Identification Details</h3>
             <form id="tallier-details-form" onsubmit="saveTallierDetails(event)">
@@ -87,7 +84,6 @@
             </form>
         </div>
 
-        <!-- Saved Tallier Display Card (Appears after saving) -->
         <div id="tallier-display-container" class="tallier-info-display">
             <h4>Saved Tallier Session Details</h4>
             <p><strong>Name:</strong> <span id="disp-name"></span></p>
@@ -96,7 +92,6 @@
             <button type="button" class="btn-edit" onclick="editTallierDetails()">Edit Details</button>
         </div>
 
-        <!-- Junction Configuration Section -->
         <div class="section-box">
             <h3>Configure Multi-Leg Junction</h3>
             <form id="junction-form" onsubmit="createJunction(event)">
@@ -120,7 +115,6 @@
             </form>
         </div>
 
-        <!-- Configured Junctions List Section -->
         <div class="section-box">
             <h3>Configured Junctions & Routes</h3>
             <table>
@@ -142,7 +136,10 @@
     </div>
 
     <script>
-        // Username-scoped storage keys
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:3000/api'
+            : 'https://your-production-backend-url.com/api';
+
         const username = localStorage.getItem('username') || 'guest';
         const tallierStorageKey = `tallier_details_${username}`;
         const junctionsStorageKey = `junctions_${username}`;
@@ -161,7 +158,6 @@
             fetchJunctions();
         });
 
-        // Strict Navigation Guard blocking access if details or junctions are not saved
         function handleNavigation(event, targetUrl) {
             event.preventDefault();
             const savedTallier = localStorage.getItem(tallierStorageKey);
@@ -199,13 +195,11 @@
             document.getElementById('disp-mobile').textContent = data.mobileNumber;
             document.getElementById('disp-id').textContent = data.idNumber;
 
-            // Hide the input form box and show the saved summary display card
             document.getElementById('tallier-section-box').style.display = 'none';
             document.getElementById('tallier-display-container').style.display = 'block';
         }
 
         function editTallierDetails() {
-            // Hide the summary card and bring back the input form for editing
             document.getElementById('tallier-display-container').style.display = 'none';
             document.getElementById('tallier-section-box').style.display = 'block';
             document.getElementById('tallier-section-box').scrollIntoView({ behavior: 'smooth' });
@@ -215,7 +209,7 @@
             localStorage.removeItem('token');
             localStorage.removeItem('username');
             localStorage.removeItem('role');
-            window.location.href = 'login.html';
+            window.location.href = 'tallier_login.html';
         }
 
         function addRouteRow() {

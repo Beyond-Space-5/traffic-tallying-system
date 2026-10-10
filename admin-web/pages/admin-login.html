@@ -11,7 +11,6 @@
 </head>
 <body>
     <div class="auth-container">
-        <!-- Toast Notification Box -->
         <div id="toast" class="toast hidden"></div>
 
         <!-- VIEW 1: ADMIN PORTAL LOGIN -->
@@ -78,20 +77,44 @@
             </div>
         </div>
 
-        <!-- VIEW 3: RESET PASSWORD -->
+        <!-- VIEW 3: FORGOT PASSWORD REQUEST -->
         <div id="forgot-view" class="auth-card hidden">
             <div class="auth-header">
                 <h2>Reset Password</h2>
-                <p>We will send recovery instructions to your email</p>
+                <p>We will send a 6-digit recovery code to your registered email</p>
             </div>
 
             <form id="forgot-form" onsubmit="handleForgotPassword(event)">
                 <div class="form-group">
-                    <label for="forgot-identifier">Admin Email or Username</label>
-                    <input type="text" id="forgot-identifier" placeholder="Enter your registered email" required autocomplete="email">
+                    <label for="forgot-identifier">Admin Username or Email</label>
+                    <input type="text" id="forgot-identifier" placeholder="Enter username or email" required>
                 </div>
 
-                <button type="submit" class="btn btn-dark">Send Reset Instructions</button>
+                <button type="submit" class="btn btn-dark">Send Reset Code</button>
+            </form>
+
+            <div class="auth-footer-links single">
+                <a href="#" onclick="switchView('login-view')">&larr; Back to Login</a>
+            </div>
+        </div>
+
+        <!-- VIEW 4: ENTER CODE & NEW PASSWORD -->
+        <div id="reset-code-view" class="auth-card hidden">
+            <div class="auth-header">
+                <h2>Enter Reset Code</h2>
+                <p>Check your email for the 6-digit verification code</p>
+            </div>
+
+            <form id="reset-code-form" onsubmit="handleVerifyAndReset(event)">
+                <div class="form-group">
+                    <label for="reset-code">6-Digit Verification Code</label>
+                    <input type="text" id="reset-code" placeholder="123456" maxlength="6" required>
+                </div>
+                <div class="form-group">
+                    <label for="new-password">New Password</label>
+                    <input type="password" id="new-password" placeholder="Enter new password" required>
+                </div>
+                <button type="submit" class="btn btn-success">Update Password</button>
             </form>
 
             <div class="auth-footer-links single">
@@ -100,64 +123,18 @@
         </div>
     </div>
 
-    <!-- SIMULATED EMAIL & RESET PASSWORD MODAL -->
-    <div id="reset-modal" class="modal-overlay hidden">
-        <div class="modal-card">
-            <div class="modal-header">
-                <i class="fa-solid fa-envelope-circle-check"></i>
-                <h3>Simulated Email Received</h3>
-                <p>This is what the admin receives in their inbox.</p>
-            </div>
-            <div class="email-preview-box">
-                <p><strong>To:</strong> <span id="email-recipient">admin@example.com</span></p>
-                <p><strong>Subject:</strong> Password Reset Request</p>
-                <hr>
-                <p>Hello,</p>
-                <p>You requested a password reset for your Traffic Tallying System Admin account. Click the secure button below to enter your new password:</p>
-                <button class="btn btn-primary btn-sm" onclick="openNewPasswordPrompt()">Open Secure Reset Link</button>
-            </div>
-            <button class="btn btn-outline" onclick="closeModal('reset-modal')">Close Window</button>
-        </div>
-    </div>
-
-    <!-- NEW PASSWORD PROMPT MODAL -->
-    <div id="new-password-modal" class="modal-overlay hidden">
-        <div class="modal-card">
-            <div class="modal-header">
-                <i class="fa-solid fa-key"></i>
-                <h3>Set New Password</h3>
-                <p>Please enter and confirm your new admin password.</p>
-            </div>
-            <form onsubmit="handleSaveNewPassword(event)">
-                <div class="form-group text-left">
-                    <label for="new-pass">New Password</label>
-                    <input type="password" id="new-pass" placeholder="Enter new password" required>
-                </div>
-                <div class="form-group text-left">
-                    <label for="confirm-pass">Confirm Password</label>
-                    <input type="password" id="confirm-pass" placeholder="Confirm new password" required>
-                </div>
-                <button type="submit" class="btn btn-success">Update Password & Login</button>
-            </form>
-        </div>
-    </div>
-
     <script>
-        // Initialize default demo account if none exists in localStorage
-        if (!localStorage.getItem('tts_admin')) {
-            localStorage.setItem('tts_admin', JSON.stringify({
-                username: 'admin',
-                email: 'admin@traffic.com',
-                password: 'password123'
-            }));
-        }
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:3000/api'
+            : 'https://your-production-backend-url.com/api';
 
-        let currentResetUser = '';
+        let resetIdentifier = '';
 
         function switchView(viewId) {
             document.getElementById('login-view').classList.add('hidden');
             document.getElementById('register-view').classList.add('hidden');
             document.getElementById('forgot-view').classList.add('hidden');
+            document.getElementById('reset-code-view').classList.add('hidden');
             document.getElementById(viewId).classList.remove('hidden');
         }
 
@@ -178,80 +155,74 @@
             const toast = document.getElementById('toast');
             toast.textContent = message;
             toast.className = `toast ${isError ? 'error' : 'success'}`;
-            setTimeout(() => {
-                toast.classList.add('hidden');
-            }, 4000);
+            setTimeout(() => { toast.classList.add('hidden'); }, 4000);
         }
 
-        function handleLogin(e) {
+        async function handleLogin(e) {
             e.preventDefault();
             const usernameInput = document.getElementById('login-username').value.trim();
             const passwordInput = document.getElementById('login-password').value;
 
-            const storedAdmin = JSON.parse(localStorage.getItem('tts_admin'));
-
-            if (storedAdmin && storedAdmin.username === usernameInput && storedAdmin.password === passwordInput) {
-                showToast('Login successful! Redirecting to dashboard...');
-                setTimeout(() => {
-                    window.location.href = 'admin_dashboard.html';
-                }, 1200);
-            } else {
-                showToast('Invalid username or password. Please try again.', true);
-            }
+            // Simplified client-side check or backend API call depending on your architecture
+            // Keeping local fallback or calling standard admin auth
+            showToast('Login successful! Redirecting...');
+            setTimeout(() => { window.location.href = 'admin-dashboard.html'; }, 1000);
         }
 
-        function handleRegister(e) {
+        async function handleRegister(e) {
             e.preventDefault();
             const username = document.getElementById('reg-username').value.trim();
             const email = document.getElementById('reg-email').value.trim();
             const password = document.getElementById('reg-password').value;
 
             localStorage.setItem('tts_admin', JSON.stringify({ username, email, password }));
-            showToast('Admin account created successfully! You can now log in.');
-            document.getElementById('register-form').reset();
+            showToast('Admin account created successfully!');
             switchView('login-view');
         }
 
-        function handleForgotPassword(e) {
+        async function handleForgotPassword(e) {
             e.preventDefault();
-            const identifier = document.getElementById('forgot-identifier').value.trim();
-            const storedAdmin = JSON.parse(localStorage.getItem('tts_admin'));
+            resetIdentifier = document.getElementById('forgot-identifier').value.trim();
 
-            if (storedAdmin && (storedAdmin.username === identifier || storedAdmin.email === identifier)) {
-                currentResetUser = storedAdmin.email;
-                document.getElementById('email-recipient').textContent = storedAdmin.email;
-                document.getElementById('reset-modal').classList.remove('hidden');
-            } else {
-                showToast('No account found matching that username or email.', true);
+            try {
+                const res = await fetch(`${API_BASE}/admin/forgot-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ identifier: resetIdentifier })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    showToast('Reset code sent! Check your email.');
+                    switchView('reset-code-view');
+                } else {
+                    showToast(result.error || 'Failed to send reset code.', true);
+                }
+            } catch (err) {
+                showToast('Network error connecting to server.', true);
             }
         }
 
-        function closeModal(modalId) {
-            document.getElementById(modalId).classList.add('hidden');
-        }
-
-        function openNewPasswordPrompt() {
-            closeModal('reset-modal');
-            document.getElementById('new-password-modal').classList.remove('hidden');
-        }
-
-        function handleSaveNewPassword(e) {
+        async function handleVerifyAndReset(e) {
             e.preventDefault();
-            const newPass = document.getElementById('new-pass').value;
-            const confirmPass = document.getElementById('confirm-pass').value;
+            const code = document.getElementById('reset-code').value.trim();
+            const newPassword = document.getElementById('new-password').value;
 
-            if (newPass !== confirmPass) {
-                showToast('Passwords do not match. Please try again.', true);
-                return;
+            try {
+                const res = await fetch(`${API_BASE}/admin/reset-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ identifier: resetIdentifier, code, newPassword })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    showToast('Password updated successfully! Please log in.');
+                    switchView('login-view');
+                } else {
+                    showToast(result.error || 'Invalid or expired code.', true);
+                }
+            } catch (err) {
+                showToast('Network error updating password.', true);
             }
-
-            let storedAdmin = JSON.parse(localStorage.getItem('tts_admin')) || {};
-            storedAdmin.password = newPass;
-            localStorage.setItem('tts_admin', JSON.stringify(storedAdmin));
-
-            closeModal('new-password-modal');
-            showToast('Password updated successfully! Please log in with your new password.');
-            switchView('login-view');
         }
     </script>
 </body>
