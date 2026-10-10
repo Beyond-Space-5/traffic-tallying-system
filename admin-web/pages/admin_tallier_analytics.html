@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Tallier Analytics & Results Dashboard</title>
+    <!-- Pointing to your existing tallier analytics stylesheet to maintain 100% identical styling -->
+    <link rel="stylesheet" href="../../tallier-web/css/tallier_analytics.css">
+    <!-- Chart.js CDN for visualising tally results -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<div class="dashboard-container">
+    <!-- Header Row (Excludes "Back to Tally" button as requested for admin side) -->
+    <div class="header-row">
+        <h2>Admin Analytics Inspection</h2>
+        <div class="nav-btn-group">
+            <a href="admin_dashboard.html" class="btn btn-primary">Back to Admin Dashboard</a>
+        </div>
+    </div>
+
+    <!-- Toolbar Row -->
+    <div class="toolbar-row">
+        <span class="subtitle" id="userSubtitle">Viewing submitted traffic counts for tallier: <span id="displayUsername" style="font-weight: bold; color: #1d6fa5;"></span> (Interval: <span id="displayInterval">15</span> mins)</span>
+    </div>
+
+    <!-- Detailed Analytics Table Section -->
+    <div class="card table-card">
+        <div class="table-responsive">
+            <table class="analytics-table" id="analyticsTable">
+                <thead>
+                    <tr>
+                        <th>Junction</th>
+                        <th>Route</th>
+                        <th>Vehicle Category</th>
+                        <th>Time Interval</th>
+                        <th style="text-align: right;">Total Count</th>
+                    </tr>
+                </thead>
+                <tbody id="analyticsTableBody">
+                    <tr>
+                        <td colspan="5" class="placeholder-text">Loading analytics records from server...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Analytics Chart Section -->
+    <div class="card chart-card">
+        <h3>Visual Breakdown by Route & Category</h3>
+        <div class="chart-container">
+            <canvas id="tallyChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = 'http://localhost:3000/api';
+    
+    // Extract the specific tallier ID passed via URL query parameters from the admin dashboard card
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetTallierId = urlParams.get('tallier_id') || 'guest';
+
+    let tallyChartInstance = null;
+    let configIntervalMinutes = 15; // Default fallback
+
+    window.onload = async function() {
+        document.getElementById('displayUsername').textContent = targetTallierId;
+        
+        // Fetch configured interval from backend
+        try {
+            const res = await fetch(`${API_BASE}/config`);
+            const data = await res.json();
+            if (data && data.interval) {
+                configIntervalMinutes = Number(data.interval);
+            }
+        } catch (err) {
+            console.error('Could not fetch interval from backend, using default 15 mins.', err);
+        }
+        
+        document.getElementById('displayInterval').textContent = configIntervalMinutes;
+        fetchTallierAnalyticsFromServer();
+    };
+
+    async function fetchTallierAnalyticsFromServer() {
+        try {
+            const response = await fetch(`${API_BASE}/tallies/${encodeURIComponent(targetTallierId)}`);
+            const data = await response.json();
+            if (data.success && data.records) {
+                loadAndDisplayAnalytics(data.records);
+            } else {
+                loadAndDisplayAnalytics([]);
+            }
+        } catch (err) {
+            console.error('Error fetching analytics from server:', err);
+            loadAndDisplayAnalytics([]);
+        }
+    }
+
+    function loadAndDisplayAnalytics(records) {
+        const tbody = document.getElementById('analyticsTableBody');
+        if (!records || records.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" class="placeholder-text">No tally records captured yet for this tallier.</td></tr>`;
+            updateChart([]);
+            return;
+        }
+
+        // Sort records chronologically for interval grouping
+        records.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        // Group records by Junction
+        let groupedByJunction = {};
+        records.forEach(rec => {
+            const junction = rec.junction || 'Unknown Junction';
+            if (!groupedByJunction[junction]) {
+                groupedByJunction[junction] = [];
+            }
+            groupedByJunction[junction].push(rec);
+        });
+
+        let html = '';
+        let overallTotal = 0;
+        let junctionIndex = 1;
+
+        for (const [junction, jRecords] of Object.entries(groupedByJunction)) {
+            html += `
+                <tr class="section-header-row">
+                    <td colspan="5"><strong>${junctionIndex}. Junction: ${junction} | Route</strong></td>
+                </tr>
+            `;
+
+            let junctionTotal = 0;
+            let cumulativeRunningTotal = 0;
+            
+            // Interval grouping helper variables based on configIntervalMinutes
+            let intervalMs = configIntervalMinutes * 60 * 1000;
+            let sessionStartTime = jRecords.length > 0 ? new Date(jRecords[0].timestamp).getTime() : Date.now();
+            let currentIntervalEnd = sessionStartTime + intervalMs;
+
+            jRecords.forEach((rec) => {
+                const count = Number(rec.count || 0);
+                junctionTotal += count;
+                overallTotal += count;
+                cumulativeRunningTotal += count;
+
+                const recTime = rec.timestamp ? new Date(rec.timestamp).getTime() : Date.now();
+
+                // Check if we crossed an interval boundary
+                if (recTime >= currentIntervalEnd) {
+                    html += `
+                        <tr style="background-color: #eef2f7; font-weight: bold; border-top: 2px dashed #1d6fa5;">
+                            <td colspan="4" style="text-align: right; color: #1d6fa5;">[${configIntervalMinutes}-Min Interval Summary - Cumulative Total]:</td>
+                            <td style="text-align: right; color: #1d6fa5;">${cumulativeRunningTotal}</td>
+                        </tr>
+                    `;
+                    while (currentIntervalEnd <= recTime) {
+                        currentIntervalEnd += intervalMs;
+                    }
+                }
+
+                html += `
+                    <tr>
+                        <td style="text-align: center; width: 40px; color: #888;">↳</td>
+                        <td><strong>${rec.route || 'N/A'}</strong></td>
+                        <td>${rec.category || 'N/A'}</td>
+                        <td>${rec.timestamp ? new Date(rec.timestamp).toLocaleTimeString() : 'N/A'}</td>
+                        <td style="text-align: right; color: #1d6fa5; font-weight: bold;">${count}</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                <tr class="subtotal-row">
+                    <td colspan="4" style="text-align: right; font-weight: bold;">Total Count:</td>
+                    <td style="text-align: right; font-weight: bold; color: #333;">${junctionTotal}</td>
+                </tr>
+            `;
+            junctionIndex++;
+        }
+
+        html += `
+            <tr class="overall-total-row">
+                <td colspan="4" style="text-align: right; font-weight: bold; font-size: 1.05em;">Overall Total Count:</td>
+                <td style="text-align: right; font-weight: bold; font-size: 1.05em; color: #28a745;">${overallTotal}</td>
+            </tr>
+        `;
+
+        tbody.innerHTML = html;
+        updateChart(records);
+    }
+
+    function updateChart(records) {
+        const ctx = document.getElementById('tallyChart').getContext('2d');
+
+        if (!records || records.length === 0) {
+            if (tallyChartInstance) {
+                tallyChartInstance.destroy();
+                tallyChartInstance = null;
+            }
+            return;
+        }
+
+        const categories = [...new Set(records.map(r => r.category || 'Vehicle'))];
+        const routes = [...new Set(records.map(r => r.route || 'Route'))];
+        const colors = ['#1d6fa5', '#009688', '#8a2be2', '#e91e63', '#ff9800', '#4caf50'];
+
+        const datasets = routes.map((route, index) => {
+            const data = categories.map(cat => {
+                const match = records.filter(r => (r.category || 'Vehicle') === cat && (r.route || 'Route') === route);
+                return match.reduce((sum, curr) => sum + Number(curr.count || 0), 0);
+            });
+            return {
+                label: route,
+                data: data,
+                backgroundColor: colors[index % colors.length],
+                borderColor: colors[index % colors.length],
+                borderWidth: 1
+            };
+        });
+
+        if (tallyChartInstance) {
+            tallyChartInstance.data.labels = categories;
+            tallyChartInstance.data.datasets = datasets;
+            tallyChartInstance.update();
+        } else {
+            tallyChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: categories,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { precision: 0 }
+                        }
+                    }
+                }
+            });
+        }
+    }
+</script>
+
+</body>
+</html>

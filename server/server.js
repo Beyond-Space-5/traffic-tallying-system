@@ -7,135 +7,151 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(cors());
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, '../')));
+
+// Serve static files from root and subdirectories (Fixes "Cannot GET" errors)
+app.use(express.static(path.join(__dirname)));
+app.use('/admin-web', express.static(path.join(__dirname, 'admin-web')));
+app.use('/tallier-web', express.static(path.join(__dirname, 'tallier-web')));
 
 // Initialize SQLite Database
-const dbPath = path.resolve(__dirname, '../database.sqlite');
-const db = new sqlite3.Database(dbPath, (err) => {
+const db = new sqlite3.Database('./database.sqlite', (err) => {
     if (err) {
-        console.error('Error opening database 11:', err.message);
+        console.error('Error opening database', err.message);
     } else {
         console.log('Connected to the SQLite database.');
-        initDatabase();
     }
 });
 
-// Create necessary tables if they do not exist
-function initDatabase() {
-    db.serialize(() => {
-        // Configuration table for system settings (like analytics interval)
-        db.run(`CREATE TABLE IF NOT EXISTS config (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        )`, (err) => {
-            if (!err) {
-                // Set default interval to 15 minutes if not already set
-                db.run(`INSERT OR IGNORE INTO config (key, value) VALUES ('interval', '15')`);
+// Create Database Tables
+db.serialize(() => {
+    db.run(`CREATE TABLE IF NOT EXISTS talliers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        location TEXT NOT NULL,
+        active INTEGER DEFAULT 1,
+        last_sync TEXT DEFAULT 'Never'
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS tally_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tallier_id TEXT NOT NULL,
+        junction TEXT NOT NULL,
+        route TEXT NOT NULL,
+        category TEXT NOT NULL,
+        count INTEGER NOT NULL,
+        timestamp TEXT NOT NULL
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS system_config (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    )`);
+
+    db.run(`INSERT OR IGNORE INTO system_config (key, value) VALUES ('interval', '15')`);
+});
+
+// --- AUTHENTICATION & TALLIER MANAGEMENT APIs ---
+
+app.post('/api/talliers', (req, res) => {
+    const { username, password, location } = req.body;
+    if (!username || !password || !location) {
+        return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+
+    db.run(
+        `INSERT INTO talliers (username, password, location, active, last_sync) 
+         VALUES (?, ?, ?, 1, 'Never') 
+         ON CONFLICT(username) DO UPDATE SET password = excluded.password, location = excluded.location`,
+        [username, password, location],
+        function (err) {
+            if (err) {
+                return res.status(500).json({ success: false, error: err.message });
             }
-        });
+            res.json({ success: true, id: this.lastID || username });
+        }
+    );
+});
 
-        // Tally records table
-        db.run(`CREATE TABLE IF NOT EXISTS tally_records (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tallier_id TEXT,
-            location TEXT,
-            route TEXT,
-            category TEXT,
-            count INTEGER,
-            timestamp TEXT
-        )`);
-
-        // Interval snapshots / summaries table for tracking X-minute boundaries
-        db.run(`CREATE TABLE IF NOT EXISTS interval_snapshots (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            location TEXT,
-            interval_start TEXT,
-            interval_end TEXT,
-            cumulative_total INTEGER,
-            summary_data TEXT,
-            timestamp TEXT
-        )`);
-    });
-}
-
-// ==========================
-// CONFIGURATION ENDPOINTS
-// ==========================
-
-// Get configuration (e.g., analytics interval)
-app.get('/api/config', (req, res) => {
-    db.all(`SELECT key, value FROM config`, [], (err, rows) => {
+app.get('/api/talliers', (req, res) => {
+    db.all(`SELECT * FROM talliers`, [], (err, talliers) => {
         if (err) {
             return res.status(500).json({ success: false, error: err.message });
         }
-        let config = {};
-        rows.forEach(row => {
-            config[row.key] = isNaN(row.value) ? row.value : Number(row.value);
-        });
-        res.json({ success: true, ...config });
+        res.json({ success: true, talliers });
     });
 });
 
-// Update configuration (e.g., interval in minutes)
-app.post('/api/config', (req, res) => {
-    const { interval } = req.body;
-    if (interval === undefined || interval <= 0) {
-        return res.status(400).json({ success: false, error: 'Invalid interval value.' });
-    }
-
-    db.run(`INSERT OR REPLACE INTO config (key, value) VALUES ('interval', ?)`, [interval], function(err) {
+app.post('/api/tallier/login', (req, res) => {
+    const { username, password } = req.body;
+    db.get(`SELECT * FROM talliers WHERE username = ? AND password = ?`, [username, password], (err, row) => {
         if (err) {
             return res.status(500).json({ success: false, error: err.message });
         }
-        res.json({ success: true, interval: Number(interval) });
+        if (!row) {
+            return res.status(401).json({ success: false, error: 'Invalid username or password' });
+        }
+        if (row.active === 0) {
+            return res.status(403).json({ success: false, error: 'Account is deactivated by admin' });
+        }
+        res.json({ success: true, username: row.username, location: row.location });
     });
 });
 
-// ==========================
-// TALLY SYNC ENDPOINTS
-// ==========================
+app.post('/api/talliers/:id/toggle', (req, res) => {
+    const tallierId = req.params.id;
+    db.get(`SELECT active FROM talliers WHERE id = ?`, [tallierId], (err, row) => {
+        if (err || !row) return res.status(404).json({ success: false, error: 'Tallier not found' });
+        const newStatus = row.active ? 0 : 1;
+        db.run(`UPDATE talliers SET active = ? WHERE id = ?`, [newStatus, tallierId], (err) => {
+            if (err) return res.status(500).json({ success: false, error: err.message });
+            res.json({ success: true, active: newStatus });
+        });
+    });
+});
 
-// Sync tally counts from field devices
-app.post('/api/tally/sync', (req, res) => {
-    const { tallier_id, location, timestamp, counts } = req.body;
+app.delete('/api/talliers/:id', (req, res) => {
+    const tallierId = req.params.id;
+    db.run(`DELETE FROM talliers WHERE id = ?`, [tallierId], (err) => {
+        if (err) return res.status(500).json({ success: false, error: err.message });
+        res.json({ success: true });
+    });
+});
 
-    if (!counts || typeof counts !== 'object') {
-        return res.status(400).json({ success: false, error: 'Invalid counts payload.' });
+// --- TALLY SUBMISSION & ANALYTICS APIs ---
+
+app.post('/api/tallies/submit', (req, res) => {
+    const { tallier_id, records } = req.body;
+    if (!tallier_id || !records || !Array.isArray(records)) {
+        return res.status(400).json({ success: false, error: 'Invalid payload' });
     }
 
-    const recordTimestamp = timestamp || new Date().toISOString();
-    const locationName = location || 'Station Alpha';
-    const tallierId = tallier_id || 1;
-
+    const stmt = db.prepare(`INSERT INTO tally_records (tallier_id, junction, route, category, count, timestamp) VALUES (?, ?, ?, ?, ?, ?)`);
+    
     db.serialize(() => {
         db.run('BEGIN TRANSACTION');
-
-        const stmt = db.prepare(`INSERT INTO tally_records (tallier_id, location, route, category, count, timestamp) VALUES (?, ?, ?, ?, ?, ?)`);
-
-        // Counts object contains incremental categories/values
-        for (const [category, count] of Object.entries(counts)) {
-            if (count > 0) {
-                stmt.run(tallierId, locationName, 'Default Route', category, count, recordTimestamp);
-            }
-        }
+        records.forEach(r => {
+            stmt.run(tallier_id, r.junction || r.location, r.route, r.category || r.vehicle, r.count, r.timestamp || new Date().toISOString());
+        });
         stmt.finalize();
+
+        const nowFormatted = new Date().toLocaleTimeString();
+        db.run(`UPDATE talliers SET last_sync = ? WHERE username = ?`, [nowFormatted, tallier_id]);
 
         db.run('COMMIT', (err) => {
             if (err) {
-                console.error('Transaction commit error:', err);
                 return res.status(500).json({ success: false, error: err.message });
             }
-            res.json({ success: true, message: 'Counts synchronized successfully.' });
+            res.json({ success: true, message: 'Records successfully stored.' });
         });
     });
 });
 
-// Get all stored tally records
-app.get('/api/tallies', (req, res) => {
-    db.all(`SELECT * FROM tally_records ORDER BY id DESC`, [], (err, rows) => {
+app.get('/api/tallies/:tallier_id', (req, res) => {
+    const tallierId = req.params.tallier_id;
+    db.all(`SELECT * FROM tally_records WHERE tallier_id = ? ORDER BY id DESC`, [tallierId], (err, rows) => {
         if (err) {
             return res.status(500).json({ success: false, error: err.message });
         }
@@ -143,7 +159,22 @@ app.get('/api/tallies', (req, res) => {
     });
 });
 
-// Start Server
+// --- SYSTEM CONFIGURATION APIs ---
+app.get('/api/config', (req, res) => {
+    db.get(`SELECT value FROM system_config WHERE key = 'interval'`, [], (err, row) => {
+        if (err) return res.status(500).json({ success: false, error: err.message });
+        res.json({ success: true, interval: row ? Number(row.value) : 15 });
+    });
+});
+
+app.post('/api/config', (req, res) => {
+    const { interval } = req.body;
+    db.run(`INSERT OR REPLACE INTO system_config (key, value) VALUES ('interval', ?)`, [String(interval)], (err) => {
+        if (err) return res.status(500).json({ success: false, error: err.message });
+        res.json({ success: true, interval });
+    });
+});
+
 app.listen(PORT, () => {
-    console.log(`Traffic Tallying System backend running on http://localhost:${PORT}`);
+    console.log(`Server running on http://localhost:${PORT}`);
 });

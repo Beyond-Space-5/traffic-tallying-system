@@ -6,130 +6,206 @@
     <title>Traffic Tallying System - Admin Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../css/admin-dashboard.css">
+    <style>
+        :root {
+            --primary-color: #2b3e50;
+            --secondary-color: #1d6fa5;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --border-color: #ced4da;
+            --text-main: #333333;
+            --text-muted: #6c757d;
+        }
+
+        body {
+            font-family: 'Inter', Arial, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+            color: var(--text-main);
+        }
+
+        .app-container { max-width: 1100px; margin: 0 auto; padding: 25px; }
+
+        .top-navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--card-bg);
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.04);
+            margin-bottom: 25px;
+        }
+
+        .nav-brand { display: flex; align-items: center; gap: 10px; font-size: 1.25rem; font-weight: 700; color: var(--primary-color); }
+        .nav-actions { display: flex; gap: 10px; align-items: center; }
+
+        .btn {
+            background-color: #495057;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: none;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn-primary { background-color: var(--secondary-color); }
+        .btn-sm { padding: 6px 12px; font-size: 0.85rem; }
+
+        .dashboard-section {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+            margin-bottom: 25px;
+        }
+
+        .section-header-simple { margin-bottom: 20px; border-bottom: 1px solid #e9ecef; padding-bottom: 15px; }
+        .section-header-simple h2 { margin: 0 0 5px 0; color: var(--primary-color); font-size: 1.25rem; }
+        .section-header-simple p { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
+
+        .talliers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+
+        .tallier-card {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-left: 5px solid var(--secondary-color);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .tallier-card:hover { transform: translateY(-3px); box-shadow: 0 8px 16px rgba(29, 111, 165, 0.12); }
+
+        .tallier-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .tallier-name { font-size: 1.15rem; font-weight: 700; color: var(--primary-color); display: flex; align-items: center; gap: 8px; }
+
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; }
+        .badge-success { background-color: #d4edda; color: #155724; }
+        .badge-danger { background-color: #f8d7da; color: #721c24; }
+
+        .tallier-detail { font-size: 0.9rem; color: var(--text-muted); margin: 6px 0; display: flex; align-items: center; gap: 8px; }
+        .tallier-footer { margin-top: 15px; padding-top: 12px; border-top: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; font-weight: 600; color: var(--secondary-color); }
+        .empty-state { grid-column: 1 / -1; text-align: center; padding: 50px 20px; background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 8px; color: var(--text-muted); }
+    </style>
 </head>
 <body>
     <div class="app-container">
-        <!-- TOP NAVIGATION BAR -->
         <header class="top-navbar">
             <div class="nav-brand">
-                <i class="fa-solid fa-traffic-light"></i>
+                <i class="fa-solid fa-chart-pie"></i>
                 <span>Admin Dashboard</span>
             </div>
             <div class="nav-actions">
-                <a href="admin-configuration.html" class="btn btn-outline btn-sm">
+                <a href="admin-configuration.html" class="btn btn-primary btn-sm">
                     <i class="fa-solid fa-gear"></i> Configuration
-                </a>
-                <a href="admin_analytics.html" class="btn btn-primary btn-sm">
-                    <i class="fa-solid fa-chart-line"></i> Analytics
                 </a>
             </div>
         </header>
 
-        <!-- MAIN CONTENT AREA -->
         <main class="main-content">
-            <!-- OVERVIEW SECTION -->
             <section class="dashboard-section">
-                <div class="section-header">
-                    <h2>System Overview</h2>
-                    <p>Monitor active field tallier units and live deployment status.</p>
-                </div>
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon bg-blue">
-                            <i class="fa-solid fa-users"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3>Registered Talliers</h3>
-                            <p id="total-talliers-count">0</p>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon bg-green">
-                            <i class="fa-solid fa-signal"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3>Active Units</h3>
-                            <p id="active-talliers-count">0</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- REGISTERED TALLIERS SECTION -->
-            <section class="dashboard-section">
-                <div class="section-header flex-row">
-                    <div>
-                        <h2>Field Tallier Units</h2>
-                        <p>Real-time list of talliers synchronized from configuration.</p>
-                    </div>
-                    <a href="admin-configuration.html" class="btn btn-primary btn-sm">
-                        <i class="fa-solid fa-plus"></i> Manage Talliers
-                    </a>
+                <div class="section-header-simple">
+                    <h2>Registered Field Talliers</h2>
+                    <p>Overview of active field units and live metrics. Click any card to inspect their individual analytics.</p>
                 </div>
 
-                <div id="talliers-grid" class="talliers-grid">
-                    <!-- Dynamically populated tallier divs appear here -->
+                <div id="talliersGrid" class="talliers-grid">
+                    <div class="empty-state">Loading registered talliers...</div>
                 </div>
             </section>
         </main>
     </div>
 
     <script>
-        // Load and render talliers dynamically from localStorage ('tts_talliers')
-        window.addEventListener('DOMContentLoaded', () => {
-            renderDashboardTalliers();
-        });
+        const API_BASE = 'http://localhost:3000/api';
 
-        function renderDashboardTalliers() {
-            let talliers = [];
+        window.onload = function() {
+            renderAdminDashboard();
+        };
+
+        async function renderAdminDashboard() {
+            const gridContainer = document.getElementById('talliersGrid');
+            
             try {
-                talliers = JSON.parse(localStorage.getItem('tts_talliers')) || [];
+                const res = await fetch(`${API_BASE}/talliers`);
+                const data = await res.json();
+                
+                if (!data.success || !data.talliers || data.talliers.length === 0) {
+                    gridContainer.innerHTML = `
+                        <div class="empty-state">
+                            <p>No tallier accounts have been created yet.</p>
+                            <a href="admin-configuration.html" class="btn btn-primary btn-sm">
+                                <i class="fa-solid fa-plus"></i> Go to Configuration to Add Talliers
+                            </a>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '';
+                for (const t of data.talliers) {
+                    const username = t.username;
+                    const location = t.location || 'Not Specified';
+                    const isActive = t.active !== 0;
+                    const lastSync = t.last_sync || 'Never';
+
+                    let recordCount = 0;
+                    try {
+                        const tallyRes = await fetch(`${API_BASE}/tallies/${encodeURIComponent(username)}`);
+                        const tallyData = await tallyRes.json();
+                        if (tallyData.success && tallyData.records) {
+                            recordCount = tallyData.records.reduce((sum, r) => sum + Number(r.count || 0), 0);
+                        }
+                    } catch(e) {}
+
+                    html += `
+                        <div class="tallier-card" onclick="openTallierAnalytics('${username}')">
+                            <div class="tallier-header">
+                                <div class="tallier-name">
+                                    <i class="fa-solid fa-user-tie" style="color: #1d6fa5;"></i> ${username}
+                                </div>
+                                <span class="badge ${isActive ? 'badge-success' : 'badge-danger'}">
+                                    ${isActive ? 'Active' : 'Inactive'}
+                                </span>
+                            </div>
+                            <div class="tallier-detail">
+                                <i class="fa-solid fa-location-dot" style="width: 16px; color: #6c757d;"></i> <strong>Location:</strong> ${location}
+                            </div>
+                            <div class="tallier-detail">
+                                <i class="fa-solid fa-calculator" style="width: 16px; color: #6c757d;"></i> <strong>Total Counted:</strong> ${recordCount} items
+                            </div>
+                            <div class="tallier-detail">
+                                <i class="fa-solid fa-clock-rotate-left" style="width: 16px; color: #6c757d;"></i> <strong>Last Sync:</strong> ${lastSync}
+                            </div>
+                            <div class="tallier-footer">
+                                <span>Inspect Analytics</span>
+                                <i class="fa-solid fa-arrow-right"></i>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                gridContainer.innerHTML = html;
             } catch (err) {
-                console.error('Error parsing talliers from localStorage:', err);
-                talliers = [];
+                console.error('Error loading talliers:', err);
+                gridContainer.innerHTML = `<div class="empty-state">Failed to load talliers from server.</div>`;
             }
+        }
 
-            const gridContainer = document.getElementById('talliers-grid');
-            const totalCountEl = document.getElementById('total-talliers-count');
-            const activeCountEl = document.getElementById('active-talliers-count');
-
-            totalCountEl.textContent = talliers.length;
-            const activeTalliers = talliers.filter(t => t.active !== false);
-            activeCountEl.textContent = activeTalliers.length;
-
-            if (talliers.length === 0) {
-                gridContainer.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fa-solid fa-users-slash"></i>
-                        <p>No tallier accounts configured yet.</p>
-                        <a href="admin-configuration.html" class="btn btn-primary btn-sm">Add Tallier in Configuration</a>
-                    </div>
-                `;
-                return;
-            }
-
-            let html = '';
-            talliers.forEach(t => {
-                const isActive = t.active !== false;
-                html += `
-                    <div class="tallier-card ${isActive ? '' : 'inactive'}">
-                        <div class="tallier-card-header">
-                            <span class="tallier-name"><i class="fa-solid fa-user-tie"></i> ${t.username}</span>
-                            <span class="badge ${isActive ? 'badge-success' : 'badge-danger'}">${isActive ? 'Active' : 'Inactive'}</span>
-                        </div>
-                        <div class="tallier-card-body">
-                            <p><i class="fa-solid fa-location-dot"></i> <strong>Location:</strong> ${t.location || 'Not Specified'}</p>
-                            <p><i class="fa-solid fa-clock"></i> <strong>Last Sync:</strong> ${t.lastSync || 'Never'}</p>
-                        </div>
-                        <div class="tallier-card-footer">
-                            <a href="admin-configuration.html" class="text-btn">Configure Settings &rarr;</a>
-                        </div>
-                    </div>
-                `;
-            });
-
-            gridContainer.innerHTML = html;
+        function openTallierAnalytics(username) {
+            // Opens the independent standalone admin analytics page with the selected tallier ID
+            window.location.href = `admin_tallier_analytics.html?tallier_id=${encodeURIComponent(username)}`;
         }
     </script>
 </body>

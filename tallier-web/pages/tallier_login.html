@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Talliers Login</title>
-    <!-- Corrected relative path to the CSS folder -->
     <link rel="stylesheet" href="../css/tallier-login.css">
-    <!-- FontAwesome for the password eye icon -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -33,30 +31,43 @@
     </div>
 
     <script>
-        // Password visibility toggle
+        const API_BASE = 'http://localhost:3000/api';
+
         const togglePassword = document.querySelector('#togglePassword');
         const password = document.querySelector('#password');
 
         togglePassword.addEventListener('click', function () {
             const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
             password.setAttribute('type', type);
-            
             this.classList.toggle('fa-eye');
             this.classList.toggle('fa-eye-slash');
         }); 
 
-        // Handle login submission, save username, and redirect to configuration page
         const loginForm = document.querySelector('#loginForm');
-        loginForm.addEventListener('submit', function (e) {
-            e.preventDefault(); // Prevent default form refresh
+        loginForm.addEventListener('submit', async function (e) {
+            e.preventDefault();
 
-            const usernameInput = document.querySelector('#username').value.trim();
-            if (usernameInput) {
-                localStorage.setItem('username', usernameInput);
+            const username = document.querySelector('#username').value.trim();
+            const passwordVal = document.querySelector('#password').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/tallier/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password: passwordVal })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    localStorage.setItem('username', result.username);
+                    window.location.href = 'tallier_configuration.html';
+                } else {
+                    alert(result.error || 'Login failed.');
+                }
+            } catch (err) {
+                console.error('Network error during login:', err);
+                alert('Could not connect to server.');
             }
-
-            // Redirect to tallier configuration page
-            window.location.href = 'tallier_configuration.html';
         });
     </script>
 </body>

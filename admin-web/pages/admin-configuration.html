@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../css/admin-configuration.css">
     <style>
-        /* Robust toast styling with smooth opacity & visibility transition */
         .toast {
             position: fixed;
             bottom: 25px;
@@ -33,7 +32,6 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Toast Notification Box -->
         <div id="toast" class="toast hidden"></div>
 
         <!-- TOP NAVIGATION BAR -->
@@ -43,8 +41,9 @@
                 <span>Admin Configuration</span>
             </div>
             <div class="nav-actions">
-                <a href="admin_dashboard.html" class="btn btn-outline btn-sm">Dashboard</a>
-                <a href="admin_analytics.html" class="btn btn-primary btn-sm">Analytics</a>
+                <a href="admin_dashboard.html" class="btn btn-outline btn-sm">
+                    <i class="fa-solid fa-chart-pie"></i> Dashboard
+                </a>
             </div>
         </header>
 
@@ -84,6 +83,7 @@
                         <thead>
                             <tr>
                                 <th>Username</th>
+                                <th>Password</th>
                                 <th>Location</th>
                                 <th>Status</th>
                                 <th>Last Sync</th>
@@ -99,7 +99,7 @@
         </main>
     </div>
 
-    <!-- CREATE / EDIT TALLIER MODAL -->
+    <!-- CREATE TALLIER MODAL -->
     <div id="tallier-modal" class="modal-overlay hidden">
         <div class="modal-card">
             <h3 id="modal-title">Create New Tallier</h3>
@@ -130,36 +130,8 @@
         </div>
     </div>
 
-    <!-- RESET PASSWORD MODAL -->
-    <div id="reset-password-modal" class="modal-overlay hidden">
-        <div class="modal-card">
-            <h3>Reset Password</h3>
-            <p class="modal-sub text-muted" style="font-size:0.875rem; margin-bottom:12px;">Set a new password for <span id="reset-target-name" class="font-bold"></span>.</p>
-            <form onsubmit="handleExecutePasswordReset(event)">
-                <input type="hidden" id="reset-tallier-id">
-                <div class="form-group">
-                    <label for="new-tallier-password">New Password</label>
-                    <div class="password-wrapper">
-                        <input type="password" id="new-tallier-password" placeholder="New password" required>
-                        <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('new-tallier-password', this)">
-                            <i class="fa-solid fa-eye"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="modal-buttons">
-                    <button type="button" class="btn btn-outline btn-sm" onclick="closeResetModal()">Cancel</button>
-                    <button type="submit" class="btn btn-success btn-sm">Update</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <script>
         const API_BASE = 'http://localhost:3000/api';
-
-        if (!localStorage.getItem('tts_talliers')) {
-            localStorage.setItem('tts_talliers', JSON.stringify([]));
-        }
 
         window.addEventListener('DOMContentLoaded', async () => {
             try {
@@ -169,7 +141,7 @@
                     document.getElementById('analytics-interval').value = data.interval;
                 }
             } catch (err) {
-                console.error('Failed to load interval from backend, using default.', err);
+                console.error('Failed to load interval from backend.', err);
             }
             renderTalliersTable();
         });
@@ -178,20 +150,7 @@
             const toast = document.getElementById('toast');
             toast.textContent = message;
             toast.className = `toast ${isError ? 'error' : 'success'}`;
-            
-            if (toast.hideTimeout) clearTimeout(toast.hideTimeout);
-            if (toast.fadeTimeout) clearTimeout(toast.fadeTimeout);
-
-            toast.classList.remove('hidden');
-            toast.style.opacity = '1';
-            toast.style.visibility = 'visible';
-
-            toast.hideTimeout = setTimeout(() => {
-                toast.style.opacity = '0';
-                toast.fadeTimeout = setTimeout(() => {
-                    toast.classList.add('hidden');
-                }, 600);
-            }, 5000);
+            setTimeout(() => { toast.classList.add('hidden'); }, 4000);
         }
 
         function togglePasswordVisibility(fieldId, btn) {
@@ -199,23 +158,16 @@
             const icon = btn.querySelector('i');
             if (input.type === 'password') {
                 input.type = 'text';
-                icon.classList.remove('fa-eye');
-                icon.classList.add('fa-eye-slash');
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
             } else {
                 input.type = 'password';
-                icon.classList.remove('fa-eye-slash');
-                icon.classList.add('fa-eye');
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
             }
         }
 
         async function handleSaveInterval(e) {
             e.preventDefault();
             const interval = parseInt(document.getElementById('analytics-interval').value);
-            if (interval <= 0) {
-                showToast('Interval must be at least 1 minute.', true);
-                return;
-            }
-
             try {
                 const res = await fetch(`${API_BASE}/config`, {
                     method: 'POST',
@@ -223,153 +175,95 @@
                     body: JSON.stringify({ interval })
                 });
                 const result = await res.json();
-                if (result.success) {
-                    showToast(`Interval set to ${interval} minutes successfully.`);
-                } else {
-                    showToast('Failed to update interval on backend.', true);
-                }
+                if (result.success) showToast(`Interval set to ${interval} minutes.`);
             } catch (err) {
-                console.error('Network error updating interval:', err);
-                showToast('Network error saving interval.', true);
+                showToast('Error saving interval.', true);
             }
         }
 
-        function renderTalliersTable() {
-            const talliers = JSON.parse(localStorage.getItem('tts_talliers')) || [];
-            const tbody = document.getElementById('talliers-table-body');
-            tbody.innerHTML = '';
+        async function renderTalliersTable() {
+            try {
+                const res = await fetch(`${API_BASE}/talliers`);
+                const data = await res.json();
+                const tbody = document.getElementById('talliers-table-body');
+                tbody.innerHTML = '';
 
-            if (talliers.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 24px;">No tallier accounts created yet. Click "Add Tallier" to start.</td></tr>`;
-                return;
+                if (!data.success || !data.talliers || data.talliers.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted" style="padding: 24px;">No tallier accounts created yet.</td></tr>`;
+                    return;
+                }
+
+                data.talliers.forEach(t => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><strong>${t.username}</strong></td>
+                        <td><code>${t.password}</code></td>
+                        <td>${t.location}</td>
+                        <td><span class="badge ${t.active ? 'badge-success' : 'badge-danger'}">${t.active ? 'Active' : 'Inactive'}</span></td>
+                        <td class="text-muted">${t.last_sync}</td>
+                        <td>
+                            <div class="action-links">
+                                <button type="button" class="text-btn text-warning" onclick="toggleStatus(${t.id})">${t.active ? 'Deactivate' : 'Activate'}</button>
+                                <button type="button" class="text-btn text-danger" onclick="deleteTallier(${t.id}, '${t.username}')">Delete</button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) {
+                console.error('Error fetching talliers:', err);
             }
-
-            talliers.forEach(t => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td><strong>${t.username}</strong></td>
-                    <td>${t.location}</td>
-                    <td><span class="badge ${t.active ? 'badge-success' : 'badge-danger'}">${t.active ? 'Active' : 'Inactive'}</span></td>
-                    <td class="text-muted">${t.lastSync}</td>
-                    <td>
-                        <div class="action-links">
-                            <button type="button" class="text-btn text-primary" onclick="editTallier('${t.id}')">Edit</button>
-                            <button type="button" class="text-btn text-dark" onclick="openResetModal('${t.id}', '${t.username}')">Reset</button>
-                            <button type="button" class="text-btn ${t.active ? 'text-warning' : 'text-success'}" onclick="toggleTallierStatus('${t.id}')">${t.active ? 'Deactivate' : 'Activate'}</button>
-                            <button type="button" class="text-btn text-danger" onclick="deleteTallier('${t.id}', '${t.username}')">Delete</button>
-                        </div>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
         }
 
-        function openTallierModal(isEdit = false) {
+        function openTallierModal() {
             document.getElementById('tallier-modal').classList.remove('hidden');
-            if (!isEdit) {
-                document.getElementById('modal-title').textContent = 'Create New Tallier';
-                document.getElementById('tallier-form').reset();
-                document.getElementById('edit-tallier-id').value = '';
-                document.getElementById('password-group').style.display = 'block';
-                document.getElementById('tallier-password').setAttribute('required', 'required');
-            }
+            document.getElementById('tallier-form').reset();
         }
 
         function closeTallierModal() {
             document.getElementById('tallier-modal').classList.add('hidden');
         }
 
-        function handleSaveTallier(e) {
+        async function handleSaveTallier(e) {
             e.preventDefault();
-            const id = document.getElementById('edit-tallier-id').value;
             const username = document.getElementById('tallier-username').value.trim();
-            const location = document.getElementById('tallier-location').value.trim();
             const password = document.getElementById('tallier-password').value;
+            const location = document.getElementById('tallier-location').value.trim();
 
-            let talliers = JSON.parse(localStorage.getItem('tts_talliers')) || [];
-
-            if (id) {
-                talliers = talliers.map(t => t.id === id ? { ...t, username, location } : t);
-                showToast(`Tallier ${username} updated.`);
-            } else {
-                talliers.push({
-                    id: Date.now().toString(),
-                    username,
-                    location,
-                    active: true,
-                    lastSync: 'Never',
-                    password: password || 'password123'
+            try {
+                const res = await fetch(`${API_BASE}/talliers`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, location })
                 });
-                showToast(`Tallier ${username} created.`);
-            }
-
-            localStorage.setItem('tts_talliers', JSON.stringify(talliers));
-            closeTallierModal();
-            renderTalliersTable();
-        }
-
-        function editTallier(id) {
-            const talliers = JSON.parse(localStorage.getItem('tts_talliers')) || [];
-            const t = talliers.find(item => item.id === id);
-            if (!t) return;
-
-            openTallierModal(true);
-            document.getElementById('modal-title').textContent = 'Edit Tallier';
-            document.getElementById('edit-tallier-id').value = t.id;
-            document.getElementById('tallier-username').value = t.username;
-            document.getElementById('tallier-location').value = t.location;
-            document.getElementById('password-group').style.display = 'none';
-            document.getElementById('tallier-password').removeAttribute('required');
-        }
-
-        function toggleTallierStatus(id) {
-            let talliers = JSON.parse(localStorage.getItem('tts_talliers')) || [];
-            talliers = talliers.map(t => {
-                if (t.id === id) {
-                    t.active = !t.active;
-                    showToast(`Tallier ${t.username} ${t.active ? 'activated' : 'deactivated'}.`);
+                const result = await res.json();
+                if (result.success) {
+                    showToast(`Tallier ${username} saved successfully.`);
+                    closeTallierModal();
+                    renderTalliersTable();
+                } else {
+                    showToast('Failed to save tallier.', true);
                 }
-                return t;
-            });
-            localStorage.setItem('tts_talliers', JSON.stringify(talliers));
-            renderTalliersTable();
-        }
-
-        function deleteTallier(id, username) {
-            if (confirm(`Delete tallier "${username}"?`)) {
-                let talliers = JSON.parse(localStorage.getItem('tts_talliers')) || [];
-                talliers = talliers.filter(t => t.id !== id);
-                localStorage.setItem('tts_talliers', JSON.stringify(talliers));
-                renderTalliersTable();
-                showToast(`Tallier ${username} deleted.`);
+            } catch (err) {
+                showToast('Network error saving tallier.', true);
             }
         }
 
-        function openResetModal(id, username) {
-            document.getElementById('reset-tallier-id').value = id;
-            document.getElementById('reset-target-name').textContent = username;
-            document.getElementById('new-tallier-password').value = '';
-            document.getElementById('reset-password-modal').classList.remove('hidden');
+        async function toggleStatus(id) {
+            try {
+                await fetch(`${API_BASE}/talliers/${id}/toggle`, { method: 'POST' });
+                renderTalliersTable();
+            } catch (err) { console.error(err); }
         }
 
-        function closeResetModal() {
-            document.getElementById('reset-password-modal').classList.add('hidden');
-        }
-
-        function handleExecutePasswordReset(e) {
-            e.preventDefault();
-            const id = document.getElementById('reset-tallier-id').value;
-            const newPass = document.getElementById('new-tallier-password').value;
-
-            let talliers = JSON.parse(localStorage.getItem('tts_talliers')) || [];
-            talliers = talliers.map(t => {
-                if (t.id === id) t.password = newPass;
-                return t;
-            });
-
-            localStorage.setItem('tts_talliers', JSON.stringify(talliers));
-            closeResetModal();
-            showToast('Password reset successful.');
+        async function deleteTallier(id, username) {
+            if (confirm(`Delete tallier "${username}"?`)) {
+                try {
+                    await fetch(`${API_BASE}/talliers/${id}`, { method: 'DELETE' });
+                    renderTalliersTable();
+                    showToast(`Tallier ${username} deleted.`);
+                } catch (err) { console.error(err); }
+            }
         }
     </script>
 </body>

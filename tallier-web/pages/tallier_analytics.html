@@ -4,15 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tally Analytics & Results Dashboard</title>
-    <!-- Correct stylesheet path pointing to tallier_analytics.css -->
     <link rel="stylesheet" href="../css/tallier_analytics.css">
-    <!-- Chart.js CDN for visualising tally results -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
 <div class="dashboard-container">
-    <!-- Header Row -->
     <div class="header-row">
         <h2>Analytics Dashboard</h2>
         <div class="nav-btn-group">
@@ -21,13 +18,10 @@
         </div>
     </div>
 
-    <!-- Toolbar Row -->
     <div class="toolbar-row">
-        <span class="subtitle" id="userSubtitle">Viewing submitted traffic counts for: <span id="displayUsername"></span> (Interval: <span id="displayInterval">15</span> mins)</span>
-        <button class="btn btn-danger" onclick="clearAnalyticsData()">🗑️ Clear My Records</button>
+        <span class="subtitle" id="userSubtitle">Viewing submitted traffic counts for: <span id="displayUsername" style="font-weight: bold; color: #1d6fa5;"></span> (Interval: <span id="displayInterval">15</span> mins)</span>
     </div>
 
-    <!-- Detailed Analytics Table Section -->
     <div class="card table-card">
         <div class="table-responsive">
             <table class="analytics-table" id="analyticsTable">
@@ -42,14 +36,13 @@
                 </thead>
                 <tbody id="analyticsTableBody">
                     <tr>
-                        <td colspan="5" class="placeholder-text">No tally records captured yet. Start recording counts on the tally page.</td>
+                        <td colspan="5" class="placeholder-text">Loading analytics from server...</td>
                     </tr>
                 </tbody>
             </table>
         </div>
     </div>
 
-    <!-- Analytics Chart Section -->
     <div class="card chart-card">
         <h3>Visual Breakdown by Route & Category</h3>
         <div class="chart-container">
@@ -60,16 +53,17 @@
 
 <script>
     const API_BASE = 'http://localhost:3000/api';
-    const username = localStorage.getItem('username') || 'guest';
-    const countsStorageKey = `traffic_counts_${username}`;
+    
+    // Support both individual tallier login and admin view via ?tallier_id=...
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetTallierId = urlParams.get('tallier_id') || localStorage.getItem('username') || 'guest';
 
     let tallyChartInstance = null;
-    let configIntervalMinutes = 15; // Default fallback
+    let configIntervalMinutes = 15;
 
     window.onload = async function() {
-        document.getElementById('displayUsername').textContent = username;
+        document.getElementById('displayUsername').textContent = targetTallierId;
         
-        // Fetch configured interval from backend
         try {
             const res = await fetch(`${API_BASE}/config`);
             const data = await res.json();
@@ -81,34 +75,38 @@
         }
         
         document.getElementById('displayInterval').textContent = configIntervalMinutes;
-        loadAndDisplayAnalytics();
+        fetchAnalyticsFromServer();
     };
 
-    function loadAndDisplayAnalytics() {
-        let records = [];
+    async function fetchAnalyticsFromServer() {
         try {
-            records = JSON.parse(localStorage.getItem(countsStorageKey)) || [];
-        } catch(e) {
-            records = [];
+            const response = await fetch(`${API_BASE}/tallies/${encodeURIComponent(targetTallierId)}`);
+            const data = await response.json();
+            if (data.success && data.records) {
+                loadAndDisplayAnalytics(data.records);
+            } else {
+                loadAndDisplayAnalytics([]);
+            }
+        } catch (err) {
+            console.error('Error fetching analytics from server:', err);
+            loadAndDisplayAnalytics([]);
         }
+    }
 
+    function loadAndDisplayAnalytics(records) {
         const tbody = document.getElementById('analyticsTableBody');
-        if (records.length === 0) {
+        if (!records || records.length === 0) {
             tbody.innerHTML = `<tr><td colspan="5" class="placeholder-text">No tally records captured yet. Start recording counts on the tally page.</td></tr>`;
             updateChart([]);
             return;
         }
 
-        // Sort records chronologically for interval grouping
         records.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-        // Group records by Junction
         let groupedByJunction = {};
         records.forEach(rec => {
             const junction = rec.junction || 'Unknown Junction';
-            if (!groupedByJunction[junction]) {
-                groupedByJunction[junction] = [];
-            }
+            if (!groupedByJunction[junction]) groupedByJunction[junction] = [];
             groupedByJunction[junction].push(rec);
         });
 
@@ -125,13 +123,11 @@
 
             let junctionTotal = 0;
             let cumulativeRunningTotal = 0;
-            
-            // Interval grouping helper variables based on configIntervalMinutes
             let intervalMs = configIntervalMinutes * 60 * 1000;
             let sessionStartTime = jRecords.length > 0 ? new Date(jRecords[0].timestamp).getTime() : Date.now();
             let currentIntervalEnd = sessionStartTime + intervalMs;
 
-            jRecords.forEach((rec, idx) => {
+            jRecords.forEach((rec) => {
                 const count = Number(rec.count || 0);
                 junctionTotal += count;
                 overallTotal += count;
@@ -139,7 +135,6 @@
 
                 const recTime = rec.timestamp ? new Date(rec.timestamp).getTime() : Date.now();
 
-                // Check if we crossed an interval boundary (insert summary once per boundary crossed)
                 if (recTime >= currentIntervalEnd) {
                     html += `
                         <tr style="background-color: #eef2f7; font-weight: bold; border-top: 2px dashed #1d6fa5;">
@@ -147,7 +142,6 @@
                             <td style="text-align: right; color: #1d6fa5;">${cumulativeRunningTotal}</td>
                         </tr>
                     `;
-                    // Advance interval end past current record time to prevent duplicate stacking on time gaps
                     while (currentIntervalEnd <= recTime) {
                         currentIntervalEnd += intervalMs;
                     }
@@ -186,8 +180,7 @@
 
     function updateChart(records) {
         const ctx = document.getElementById('tallyChart').getContext('2d');
-
-        if (records.length === 0) {
+        if (!records || records.length === 0) {
             if (tallyChartInstance) {
                 tallyChartInstance.destroy();
                 tallyChartInstance = null;
@@ -197,7 +190,6 @@
 
         const categories = [...new Set(records.map(r => r.category || 'Vehicle'))];
         const routes = [...new Set(records.map(r => r.route || 'Route'))];
-
         const colors = ['#1d6fa5', '#009688', '#8a2be2', '#e91e63', '#ff9800', '#4caf50'];
 
         const datasets = routes.map((route, index) => {
@@ -221,29 +213,13 @@
         } else {
             tallyChartInstance = new Chart(ctx, {
                 type: 'bar',
-                data: {
-                    labels: categories,
-                    datasets: datasets
-                },
+                data: { labels: categories, datasets: datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { precision: 0 }
-                        }
-                    }
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
                 }
             });
-        }
-    }
-
-    function clearAnalyticsData() {
-        if (confirm("Are you sure you want to clear your recorded analytics?")) {
-            localStorage.removeItem(countsStorageKey);
-            loadAndDisplayAnalytics();
-            alert("Analytics records cleared.");
         }
     }
 </script>

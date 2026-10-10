@@ -59,25 +59,11 @@
             text-decoration: none;
         }
 
-        .btn:hover {
-            opacity: 0.9;
-        }
-
-        .btn-primary {
-            background-color: var(--secondary-color);
-        }
-
-        .btn-success {
-            background-color: var(--success-color);
-        }
-
-        .btn-danger {
-            background-color: var(--danger-color);
-        }
-
-        .btn-purple {
-            background-color: var(--purple-color);
-        }
+        .btn:hover { opacity: 0.9; }
+        .btn-primary { background-color: var(--secondary-color); }
+        .btn-success { background-color: var(--success-color); }
+        .btn-danger { background-color: var(--danger-color); }
+        .btn-purple { background-color: var(--purple-color); }
 
         .btn-submit {
             background-color: #1a56db;
@@ -85,19 +71,15 @@
             padding: 12px;
             font-size: 1.1rem;
             margin-top: 20px;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
             font-weight: bold;
-            color: #495057;
         }
 
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #495057; }
         select, input[type="text"] {
             width: 100%;
             padding: 10px;
@@ -123,12 +105,7 @@
             margin-bottom: 12px;
         }
 
-        .category-input-row {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-
+        .category-input-row { display: flex; gap: 10px; margin-bottom: 15px; }
         .categories-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -144,61 +121,15 @@
             position: relative;
         }
 
-        .category-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-weight: bold;
-            margin-bottom: 8px;
-        }
+        .category-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; margin-bottom: 8px; }
+        .remove-cat-btn { background: none; border: none; color: #aaa; cursor: pointer; font-size: 1rem; }
+        .remove-cat-btn:hover { color: var(--danger-color); }
+        .category-count { font-size: 1.8rem; font-weight: bold; color: var(--secondary-color); margin-bottom: 10px; }
+        .count-btn-group { display: flex; gap: 5px; }
+        .count-btn-group button { flex: 1; padding: 6px; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .empty-notice { color: #6c757d; font-style: italic; font-size: 0.9rem; }
+        .placeholder-text { text-align: center; color: #6c757d; padding: 30px; }
 
-        .remove-cat-btn {
-            background: none;
-            border: none;
-            color: #aaa;
-            cursor: pointer;
-            font-size: 1rem;
-        }
-
-        .remove-cat-btn:hover {
-            color: var(--danger-color);
-        }
-
-        .category-count {
-            font-size: 1.8rem;
-            font-weight: bold;
-            color: var(--secondary-color);
-            margin-bottom: 10px;
-        }
-
-        .count-btn-group {
-            display: flex;
-            gap: 5px;
-        }
-
-        .count-btn-group button {
-            flex: 1;
-            padding: 6px;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        .empty-notice {
-            color: #6c757d;
-            font-style: italic;
-            font-size: 0.9rem;
-        }
-
-        .placeholder-text {
-            text-align: center;
-            color: #6c757d;
-            padding: 30px;
-        }
-
-        /* Toast notification style */
         .toast {
             position: fixed;
             top: 20px;
@@ -219,7 +150,6 @@
 <body>
 
 <div class="container">
-    <!-- Toast Notification Box -->
     <div id="toast" class="toast hidden"></div>
 
     <div class="header-row">
@@ -250,31 +180,18 @@
     const API_BASE = 'http://localhost:3000/api';
     const username = localStorage.getItem('username') || 'guest';
     const junctionsStorageKey = `junctions_${username}`;
-    const countsStorageKey = `traffic_counts_${username}`;
     const activeJunctionStorageKey = `active_junction_id_${username}`;
 
     let configuredJunctions = [];
     let currentJunctionData = null;
     let tallyState = {};
-    let lastSavedState = {}; // Tracks what has already been saved in this session
-
-    // Delta buffer tracking counts added since last background sync
-    let unsyncedDelta = {
-        motorcycles: 0,
-        cars: 0,
-        matatus: 0,
-        buses: 0,
-        trucks: 0,
-        bicycles: 0,
-        pedestrians: 0
-    };
+    let lastSavedState = {};
 
     window.onload = function() {
         try {
             const savedJunctions = localStorage.getItem(junctionsStorageKey);
             configuredJunctions = savedJunctions ? JSON.parse(savedJunctions) : [];
         } catch (err) {
-            console.error('Error parsing saved junctions:', err);
             configuredJunctions = [];
         }
 
@@ -287,10 +204,8 @@
         configuredJunctions.forEach(j => {
             const option = document.createElement('option');
             option.value = j.id;
-            
             let routeList = j.routes || j.paths || [];
             let routeString = routeList.map(r => typeof r === 'string' ? r : `${r.from} &rarr; ${r.to}`).join(', ');
-            
             option.textContent = `${j.name} [ ${routeString} ]`;
             select.appendChild(option);
         });
@@ -328,10 +243,8 @@
         }
 
         currentJunctionData = configuredJunctions.find(j => j.id == junctionId);
-        
         let rawRoutes = currentJunctionData.routes || currentJunctionData.paths || [];
         const normalizedRoutes = rawRoutes.map(r => typeof r === 'string' ? r : `${r.from} ➔ ${r.to}`);
-        
         currentJunctionData.formattedRoutes = normalizedRoutes;
 
         const tempStateKey = `temp_tally_state_${username}_${junctionId}`;
@@ -357,28 +270,18 @@
             } catch(e) {
                 tallyState = {};
                 lastSavedState = {};
-                normalizedRoutes.forEach(r => {
-                    tallyState[r] = {};
-                    lastSavedState[r] = {};
-                });
             }
         }
 
         let html = '';
-        
         if (normalizedRoutes.length > 1) {
-            html += `
-                <div style="margin-bottom: 15px;">
-                    <button class="btn btn-purple" onclick="copyCategoriesToAll()">💾 Copy Categories to All Other Routes</button>
-                </div>
-            `;
+            html += `<div style="margin-bottom: 15px;"><button class="btn btn-purple" onclick="copyCategoriesToAll()">💾 Copy Categories to All Other Routes</button></div>`;
         }
 
         normalizedRoutes.forEach((route, index) => {
-            const routeNum = index + 1;
             html += `
                 <div class="route-card" id="route-card-${index}">
-                    <div class="route-title">Route ${routeNum}: ${route}</div>
+                    <div class="route-title">Route ${index + 1}: ${route}</div>
                     <div class="category-input-row">
                         <input type="text" id="input-cat-${index}" placeholder="Enter vehicle category (e.g., Matatu, Car, Truck)">
                         <button class="btn btn-primary" onclick="addCategory(${index})">+ Add Category</button>
@@ -392,35 +295,25 @@
 
         container.innerHTML = html;
         submitBtn.style.display = 'block';
-
-        normalizedRoutes.forEach((_, index) => {
-            renderCategories(index);
-        });
+        normalizedRoutes.forEach((_, index) => renderCategories(index));
     }
 
     function saveTempTallyState() {
         if (currentJunctionData) {
-            const tempStateKey = `temp_tally_state_${username}_${currentJunctionData.id}`;
-            localStorage.setItem(tempStateKey, JSON.stringify(tallyState));
+            localStorage.setItem(`temp_tally_state_${username}_${currentJunctionData.id}`, JSON.stringify(tallyState));
         }
     }
 
     function addCategory(routeIndex, catNameOverride = null) {
         const inputField = document.getElementById(`input-cat-${routeIndex}`);
         const categoryName = catNameOverride || inputField.value.trim();
-
         if (!categoryName) return;
 
         const routeName = currentJunctionData.formattedRoutes[routeIndex];
-
-        if (tallyState[routeName][categoryName] !== undefined) {
-            if (!catNameOverride) alert("Category already exists for this route.");
-            return;
-        }
+        if (tallyState[routeName][categoryName] !== undefined) return;
 
         tallyState[routeName][categoryName] = 0;
         if (!catNameOverride) inputField.value = '';
-
         saveTempTallyState();
         renderCategories(routeIndex);
     }
@@ -435,64 +328,8 @@
     function updateCount(routeIndex, categoryName, change) {
         const routeName = currentJunctionData.formattedRoutes[routeIndex];
         tallyState[routeName][categoryName] = Math.max(0, tallyState[routeName][categoryName] + change);
-        
         document.getElementById(`count-val-${routeIndex}-${categoryName}`).textContent = tallyState[routeName][categoryName];
         saveTempTallyState();
-
-        // Automatically save & sync deltas immediately on count click without navigating away
-        saveAndSyncData(false);
-
-        const keyLower = categoryName.toLowerCase();
-        if (keyLower.includes('motorcycle') || keyLower.includes('moto') || keyLower.includes('boda')) {
-            unsyncedDelta.motorcycles = Math.max(0, unsyncedDelta.motorcycles + change);
-        } else if (keyLower.includes('car') || keyLower.includes('taxi')) {
-            unsyncedDelta.cars = Math.max(0, unsyncedDelta.cars + change);
-        } else if (keyLower.includes('matatu') || keyLower.includes('minivan') || keyLower.includes('psv')) {
-            unsyncedDelta.matatus = Math.max(0, unsyncedDelta.matatus + change);
-        } else if (keyLower.includes('bus')) {
-            unsyncedDelta.buses = Math.max(0, unsyncedDelta.buses + change);
-        } else if (keyLower.includes('truck') || keyLower.includes('lorry')) {
-            unsyncedDelta.trucks = Math.max(0, unsyncedDelta.trucks + change);
-        } else if (keyLower.includes('bicycle') || keyLower.includes('bike')) {
-            unsyncedDelta.bicycles = Math.max(0, unsyncedDelta.bicycles + change);
-        } else if (keyLower.includes('pedestrian') || keyLower.includes('walk')) {
-            unsyncedDelta.pedestrians = Math.max(0, unsyncedDelta.pedestrians + change);
-        }
-    }
-
-    setInterval(async () => {
-        await pushCountsToBackend(false);
-    }, 15000);
-
-    async function pushCountsToBackend(isManual = false) {
-        const hasActivity = Object.values(unsyncedDelta).some(val => val > 0);
-        if (!hasActivity) return;
-
-        const payload = {
-            tallier_id: localStorage.getItem('tts_tallier_id') || 1,
-            location: currentJunctionData ? currentJunctionData.name : 'Station Alpha',
-            timestamp: new Date().toISOString(),
-            counts: { ...unsyncedDelta }
-        };
-
-        try {
-            const response = await fetch(`${API_BASE}/tally/sync`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            const result = await response.json();
-            if (result.success) {
-                Object.keys(unsyncedDelta).forEach(k => unsyncedDelta[k] = 0);
-                if (isManual) {
-                    showToast('Counts successfully synchronized into interval bucket.');
-                }
-            }
-        } catch (err) {
-            console.error('Backend sync offline error:', err);
-            if (isManual) showToast('Network error connecting to backend server.', true);
-        }
     }
 
     function renderCategories(routeIndex) {
@@ -501,7 +338,6 @@
         if (!grid) return;
         
         const categories = Object.keys(tallyState[routeName] || {});
-
         if (categories.length === 0) {
             grid.innerHTML = `<span class="empty-notice" id="empty-notice-${routeIndex}">No vehicle categories added for this route yet.</span>`;
             return;
@@ -529,14 +365,9 @@
 
     function copyCategoriesToAll() {
         if (!confirm("Are you sure you want to copy all vehicle categories from Route 1 to all other routes?")) return;
-
         const route1Name = currentJunctionData.formattedRoutes[0];
         const route1Categories = Object.keys(tallyState[route1Name]);
-
-        if (route1Categories.length === 0) {
-            alert("Route 1 has no categories to copy.");
-            return;
-        }
+        if (route1Categories.length === 0) return;
 
         for (let i = 1; i < currentJunctionData.formattedRoutes.length; i++) {
             route1Categories.forEach(cat => {
@@ -545,20 +376,24 @@
                 }
             });
         }
-        
         saveTempTallyState();
-        for (let i = 1; i < currentJunctionData.formattedRoutes.length; i++) {
-            renderCategories(i);
-        }
-        alert("Categories successfully copied to all other routes!");
+        for (let i = 1; i < currentJunctionData.formattedRoutes.length; i++) { renderCategories(i); }
+        alert("Categories successfully copied!");
     }
 
-    // Reusable save & sync helper (prevents duplication using delta comparison with lastSavedState)
-    function saveAndSyncData(shouldNavigate = false) {
-        if (!currentJunctionData) return;
+    // Save & Submit All Counts button functionality communicating with backend database
+    async function submitCounts() {
+        if (!currentJunctionData) {
+            alert("Please select a junction first.");
+            return;
+        }
 
         let submittedData = [];
         const lastSavedKey = `last_saved_state_${username}_${currentJunctionData.id}`;
+        
+        try {
+            lastSavedState = JSON.parse(localStorage.getItem(lastSavedKey)) || {};
+        } catch(e) { lastSavedState = {}; }
 
         for (let routeName in tallyState) {
             if (!lastSavedState[routeName]) lastSavedState[routeName] = {};
@@ -570,11 +405,8 @@
                 if (delta > 0) {
                     submittedData.push({
                         junction: currentJunctionData.name,
-                        junction_name: currentJunctionData.name,
                         route: routeName,
                         category: cat,
-                        vehicle: cat,
-                        type: cat,
                         count: delta,
                         timestamp: new Date().toISOString()
                     });
@@ -582,51 +414,38 @@
             }
         }
 
-        if (submittedData.length > 0) {
-            const genericCountsKey = 'traffic_counts';
-            
-            let existingCounts = [];
-            let existingGenericCounts = [];
-            try {
-                existingCounts = JSON.parse(localStorage.getItem(countsStorageKey)) || [];
-            } catch(e) { existingCounts = []; }
-
-            try {
-                existingGenericCounts = JSON.parse(localStorage.getItem(genericCountsKey)) || [];
-            } catch(e) { existingGenericCounts = []; }
-
-            localStorage.setItem(countsStorageKey, JSON.stringify(existingCounts.concat(submittedData)));
-            localStorage.setItem(genericCountsKey, JSON.stringify(existingGenericCounts.concat(submittedData)));
-
-            // Update lastSavedState tracking so deltas aren't saved twice
-            for (let routeName in tallyState) {
-                if (!lastSavedState[routeName]) lastSavedState[routeName] = {};
-                for (let cat in tallyState[routeName]) {
-                    lastSavedState[routeName][cat] = tallyState[routeName][cat];
-                }
-            }
-            localStorage.setItem(lastSavedKey, JSON.stringify(lastSavedState));
-        }
-
-        if (shouldNavigate) {
+        if (submittedData.length === 0) {
+            alert("No new counts to submit.");
             window.location.href = 'tallier_analytics.html';
-        }
-    }
-
-    async function submitCounts() {
-        if (!currentJunctionData) {
-            alert("Please select a junction first.");
             return;
         }
 
         try {
-            await pushCountsToBackend(true);
-        } catch (err) {
-            console.error("Backend sync failed:", err);
-        }
+            const response = await fetch(`${API_BASE}/tallies/submit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tallier_id: username, records: submittedData })
+            });
 
-        // Save, sync, and navigate to analytics page
-        saveAndSyncData(true);
+            const result = await response.json();
+            if (result.success) {
+                // Update local lastSavedState so deltas aren't submitted twice
+                for (let routeName in tallyState) {
+                    if (!lastSavedState[routeName]) lastSavedState[routeName] = {};
+                    for (let cat in tallyState[routeName]) {
+                        lastSavedState[routeName][cat] = tallyState[routeName][cat];
+                    }
+                }
+                localStorage.setItem(lastSavedKey, JSON.stringify(lastSavedState));
+                showToast("Counts successfully saved and submitted to server!");
+                setTimeout(() => { window.location.href = 'tallier_analytics.html'; }, 1000);
+            } else {
+                alert("Failed to submit counts: " + result.error);
+            }
+        } catch (err) {
+            console.error("Network error submitting counts:", err);
+            alert("Network error connecting to server.");
+        }
     }
 </script>
 
