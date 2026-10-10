@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Field Traffic Tally</title>
+    <title>Tally Analytics & Results Dashboard</title>
     <link rel="manifest" href="../manifest.json">
     <script>
       if ('serviceWorker' in navigator) {
@@ -11,16 +11,15 @@
           .then(() => console.log('Service Worker Registered'));
       }
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary-color: #2b3e50;
             --secondary-color: #1d6fa5;
             --success-color: #28a745;
-            --danger-color: #dc3545;
-            --purple-color: #6f42c1;
             --bg-color: #f8f9fa;
             --card-bg: #ffffff;
-            --border-color: #ced4da;
+            --border-color: #e9ecef;
         }
 
         body {
@@ -31,21 +30,19 @@
             color: #333;
         }
 
-        .container {
-            max-width: 900px;
+        .dashboard-container {
+            max-width: 1100px;
             margin: 0 auto;
-            background: var(--card-bg);
-            padding: 25px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
 
         .header-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid #e9ecef;
-            padding-bottom: 15px;
+            background: var(--card-bg);
+            padding: 20px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             margin-bottom: 20px;
         }
 
@@ -55,402 +52,405 @@
             font-size: 1.5rem;
         }
 
+        .nav-btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
         .btn {
-            background-color: #495057;
-            color: white;
-            border: none;
             padding: 8px 16px;
             border-radius: 4px;
-            cursor: pointer;
             font-weight: bold;
             text-decoration: none;
-        }
-
-        .btn:hover { opacity: 0.9; }
-        .btn-primary { background-color: var(--secondary-color); }
-        .btn-success { background-color: var(--success-color); }
-        .btn-danger { background-color: var(--danger-color); }
-        .btn-purple { background-color: var(--purple-color); }
-
-        .btn-submit {
-            background-color: #1a56db;
-            width: 100%;
-            padding: 12px;
-            font-size: 1.1rem;
-            margin-top: 20px;
-            color: white;
-            border: none;
-            border-radius: 4px;
             cursor: pointer;
-            font-weight: bold;
+            border: none;
+            display: inline-block;
         }
 
-        .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; font-weight: bold; color: #495057; }
-        select, input[type="text"] {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            font-size: 1rem;
-            box-sizing: border-box;
-        }
+        .btn-primary { background-color: var(--secondary-color); color: white; }
+        .btn-secondary { background-color: #6c757d; color: white; }
+        .btn:hover { opacity: 0.9; }
 
-        .route-card {
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 15px;
-            margin-bottom: 20px;
-            background-color: #fff;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-        }
-
-        .route-title {
-            font-weight: bold;
-            font-size: 1.1rem;
-            color: var(--primary-color);
-            margin-bottom: 12px;
-        }
-
-        .category-input-row { display: flex; gap: 10px; margin-bottom: 15px; }
-        .categories-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-            gap: 15px;
-        }
-
-        .category-box {
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 12px;
-            background: #fdfdfd;
-            text-align: center;
-            position: relative;
-        }
-
-        .category-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; margin-bottom: 8px; }
-        .remove-cat-btn { background: none; border: none; color: #aaa; cursor: pointer; font-size: 1rem; }
-        .remove-cat-btn:hover { color: var(--danger-color); }
-        .category-count { font-size: 1.8rem; font-weight: bold; color: var(--secondary-color); margin-bottom: 10px; }
-        .count-btn-group { display: flex; gap: 5px; }
-        .count-btn-group button { flex: 1; padding: 6px; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .empty-notice { color: #6c757d; font-style: italic; font-size: 0.9rem; }
-        .placeholder-text { text-align: center; color: #6c757d; padding: 30px; }
-
-        .toast {
-            position: fixed;
-            top: 20px;
-            right: 20px;
+        .toolbar-row {
+            background: var(--card-bg);
             padding: 12px 20px;
-            border-radius: 4px;
-            color: #fff;
-            font-weight: bold;
-            z-index: 1000;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: opacity 0.3s ease;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+            color: #555;
+            font-size: 0.95rem;
         }
-        .toast.success { background-color: var(--success-color); }
-        .toast.error { background-color: var(--danger-color); }
-        .toast.hidden { display: none; }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .card h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            font-size: 1.15rem;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+        }
+
+        .analytics-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        .analytics-table th {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 12px;
+            font-weight: bold;
+            border: 1px solid var(--primary-color);
+        }
+
+        .analytics-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .analytics-table tr:nth-child(even) {
+            background-color: #fdfdfd;
+        }
+
+        .placeholder-text {
+            text-align: center;
+            color: #777;
+            padding: 30px !important;
+            font-style: italic;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 320px;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div id="toast" class="toast hidden"></div>
-
+<div class="dashboard-container">
     <div class="header-row">
-        <h2>Field Traffic Tally</h2>
-        <div>
-            <a href="tallier_analytics.html" class="btn btn-primary" style="margin-right: 10px;">View Analytics Dashboard</a>
-            <a href="tallier_configuration.html" class="btn">&larr; Back to Configuration</a>
+        <h2>Analytics Dashboard</h2>
+        <div class="nav-btn-group">
+            <a href="tallier_tally.html" class="btn btn-secondary">Back to Tally</a>
+            <a href="tallier_configuration.html" class="btn btn-primary">Dashboard</a>
         </div>
     </div>
 
-    <div class="form-group">
-        <label for="junctionSelect">Select Active Junction:</label>
-        <select id="junctionSelect" onchange="handleJunctionChange()">
-            <option value="">-- Choose a Junction --</option>
-        </select>
+    <div class="toolbar-row">
+        <span class="subtitle" id="userSubtitle">Viewing interval-aggregated traffic counts for: <span id="displayUsername" style="font-weight: bold; color: #1d6fa5;"></span> (Interval: <span id="displayInterval">15</span> mins)</span>
     </div>
 
-    <div id="routesContainer">
-        <div class="placeholder-text" id="placeholderNotice">
-            Please select a junction above to begin route-based counting.
+    <div class="card table-card">
+        <div class="table-responsive">
+            <table class="analytics-table" id="analyticsTable">
+                <thead>
+                    <tr>
+                        <th>Junction</th>
+                        <th>Route</th>
+                        <th>Vehicle Category</th>
+                        <th>Time Interval</th>
+                        <th style="text-align: right;">Aggregated Count</th>
+                    </tr>
+                </thead>
+                <tbody id="analyticsTableBody">
+                    <tr>
+                        <td colspan="5" class="placeholder-text">Loading analytics from server...</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
-    <button id="submitBtn" class="btn btn-submit" style="display: none;" onclick="submitCounts()">Save &amp; Submit All Counts</button>
+    <!-- Bar Chart Card -->
+    <div class="card chart-card">
+        <h3>Visual Breakdown by Route & Category</h3>
+        <div class="chart-container">
+            <canvas id="tallyChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Interval-Aggregated Line Chart Card -->
+    <div class="card chart-card">
+        <h3>Vehicle Quantity vs. Time (Trendline by Category)</h3>
+        <div class="chart-container">
+            <canvas id="tallyLineChart"></canvas>
+        </div>
+    </div>
 </div>
 
 <script>
     const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
         ? 'http://localhost:3000/api'
         : 'https://your-production-backend-url.com/api';
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetTallierId = urlParams.get('tallier_id') || localStorage.getItem('username') || 'guest';
 
-    const username = localStorage.getItem('username') || 'guest';
-    const junctionsStorageKey = `junctions_${username}`;
-    const activeJunctionStorageKey = `active_junction_id_${username}`;
+    let tallyChartInstance = null;
+    let tallyLineChartInstance = null;
+    let configIntervalMinutes = 15;
 
-    let configuredJunctions = [];
-    let currentJunctionData = null;
-    let tallyState = {};
-    let lastSavedState = {};
-
-    window.onload = function() {
+    window.onload = async function() {
+        document.getElementById('displayUsername').textContent = targetTallierId;
+        
         try {
-            const savedJunctions = localStorage.getItem(junctionsStorageKey);
-            configuredJunctions = savedJunctions ? JSON.parse(savedJunctions) : [];
+            const res = await fetch(`${API_BASE}/config`);
+            const data = await res.json();
+            if (data && data.interval) {
+                configIntervalMinutes = Number(data.interval);
+            }
         } catch (err) {
-            configuredJunctions = [];
+            console.error('Could not fetch interval from backend, using default 15 mins.', err);
         }
-
-        const select = document.getElementById('junctionSelect');
-        if (configuredJunctions.length === 0) {
-            select.innerHTML = '<option value="">-- No configured junctions found. Please configure one first --</option>';
-            return;
-        }
-
-        configuredJunctions.forEach(j => {
-            const option = document.createElement('option');
-            option.value = j.id;
-            let routeList = j.routes || j.paths || [];
-            let routeString = routeList.map(r => typeof r === 'string' ? r : `${r.from} ➔ ${r.to}`).join(', ');
-            option.textContent = `${j.name} [ ${routeString} ]`;
-            select.appendChild(option);
-        });
-
-        const savedJunctionId = localStorage.getItem(activeJunctionStorageKey);
-        if (savedJunctionId && configuredJunctions.some(j => j.id == savedJunctionId)) {
-            select.value = savedJunctionId;
-            loadJunctionRoutes(false);
-        }
+        
+        document.getElementById('displayInterval').textContent = configIntervalMinutes;
+        fetchAnalyticsFromServer();
     };
 
-    function showToast(message, isError = false) {
-        const toast = document.getElementById('toast');
-        toast.textContent = message;
-        toast.className = `toast ${isError ? 'error' : 'success'}`;
-        setTimeout(() => { toast.classList.add('hidden'); }, 3000);
-    }
-
-    function handleJunctionChange() {
-        const junctionId = document.getElementById('junctionSelect').value;
-        localStorage.setItem(activeJunctionStorageKey, junctionId);
-        loadJunctionRoutes(true);
-    }
-
-    function loadJunctionRoutes(isNewSelection = false) {
-        const junctionId = document.getElementById('junctionSelect').value;
-        const container = document.getElementById('routesContainer');
-        const submitBtn = document.getElementById('submitBtn');
-
-        if (!junctionId) {
-            container.innerHTML = `<div class="placeholder-text">Please select a junction above to begin route-based counting.</div>`;
-            submitBtn.style.display = 'none';
-            currentJunctionData = null;
-            return;
-        }
-
-        currentJunctionData = configuredJunctions.find(j => j.id == junctionId);
-        let rawRoutes = currentJunctionData.routes || currentJunctionData.paths || [];
-        const normalizedRoutes = rawRoutes.map(r => typeof r === 'string' ? r : `${r.from} ➔ ${r.to}`);
-        currentJunctionData.formattedRoutes = normalizedRoutes;
-
-        const tempStateKey = `temp_tally_state_${username}_${junctionId}`;
-        const lastSavedKey = `last_saved_state_${username}_${junctionId}`;
-
-        if (isNewSelection || !localStorage.getItem(tempStateKey)) {
-            tallyState = {};
-            lastSavedState = {};
-            normalizedRoutes.forEach(r => {
-                tallyState[r] = {};
-                lastSavedState[r] = {};
-            });
-            saveTempTallyState();
-            localStorage.setItem(lastSavedKey, JSON.stringify(lastSavedState));
-        } else {
-            try {
-                tallyState = JSON.parse(localStorage.getItem(tempStateKey)) || {};
-                lastSavedState = JSON.parse(localStorage.getItem(lastSavedKey)) || {};
-                normalizedRoutes.forEach(r => {
-                    if (!tallyState[r]) tallyState[r] = {};
-                    if (!lastSavedState[r]) lastSavedState[r] = {};
-                });
-            } catch(e) {
-                tallyState = {};
-                lastSavedState = {};
-            }
-        }
-
-        let html = '';
-        if (normalizedRoutes.length > 1) {
-            html += `<div style="margin-bottom: 15px;"><button class="btn btn-purple" onclick="copyCategoriesToAll()">💾 Copy Categories to All Other Routes</button></div>`;
-        }
-
-        normalizedRoutes.forEach((route, index) => {
-            html += `
-                <div class="route-card" id="route-card-${index}">
-                    <div class="route-title">Route ${index + 1}: ${route}</div>
-                    <div class="category-input-row">
-                        <input type="text" id="input-cat-${index}" placeholder="Enter vehicle category (e.g., Matatu, Car, Truck)">
-                        <button class="btn btn-primary" onclick="addCategory(${index})">+ Add Category</button>
-                    </div>
-                    <div id="categories-grid-${index}" class="categories-grid">
-                        <span class="empty-notice" id="empty-notice-${index}">No vehicle categories added for this route yet.</span>
-                    </div>
-                </div>
-            `;
-        });
-
-        container.innerHTML = html;
-        submitBtn.style.display = 'block';
-        normalizedRoutes.forEach((_, index) => renderCategories(index));
-    }
-
-    function saveTempTallyState() {
-        if (currentJunctionData) {
-            localStorage.setItem(`temp_tally_state_${username}_${currentJunctionData.id}`, JSON.stringify(tallyState));
-        }
-    }
-
-    function addCategory(routeIndex, catNameOverride = null) {
-        const inputField = document.getElementById(`input-cat-${routeIndex}`);
-        const categoryName = catNameOverride || inputField.value.trim();
-        if (!categoryName) return;
-
-        const routeName = currentJunctionData.formattedRoutes[routeIndex];
-        if (tallyState[routeName][categoryName] !== undefined) return;
-
-        tallyState[routeName][categoryName] = 0;
-        if (!catNameOverride) inputField.value = '';
-        saveTempTallyState();
-        renderCategories(routeIndex);
-    }
-
-    function removeCategory(routeIndex, categoryName) {
-        const routeName = currentJunctionData.formattedRoutes[routeIndex];
-        delete tallyState[routeName][categoryName];
-        saveTempTallyState();
-        renderCategories(routeIndex);
-    }
-
-    function updateCount(routeIndex, categoryName, change) {
-        const routeName = currentJunctionData.formattedRoutes[routeIndex];
-        tallyState[routeName][categoryName] = Math.max(0, tallyState[routeName][categoryName] + change);
-        
-        document.getElementById(`count-val-${routeIndex}-${categoryName}`).textContent = tallyState[routeName][categoryName];
-        saveTempTallyState();
-
-        autoSyncDeltas();
-    }
-
-    async function autoSyncDeltas() {
-        if (!currentJunctionData) return;
-
-        let submittedData = [];
-        const lastSavedKey = `last_saved_state_${username}_${currentJunctionData.id}`;
-        
+    async function fetchAnalyticsFromServer() {
         try {
-            lastSavedState = JSON.parse(localStorage.getItem(lastSavedKey)) || {};
-        } catch(e) { lastSavedState = {}; }
-
-        for (let routeName in tallyState) {
-            if (!lastSavedState[routeName]) lastSavedState[routeName] = {};
-            for (let cat in tallyState[routeName]) {
-                const currentVal = tallyState[routeName][cat] || 0;
-                const prevSavedVal = lastSavedState[routeName][cat] || 0;
-                const delta = currentVal - prevSavedVal;
-
-                if (delta > 0) {
-                    submittedData.push({
-                        junction: currentJunctionData.name,
-                        route: routeName,
-                        category: cat,
-                        count: delta,
-                        timestamp: new Date().toISOString()
-                    });
-                }
-            }
-        }
-
-        if (submittedData.length === 0) return;
-
-        try {
-            const response = await fetch(`${API_BASE}/tallies/submit`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tallier_id: username, records: submittedData })
-            });
-
-            const result = await response.json();
-            if (result.success) {
-                for (let routeName in tallyState) {
-                    if (!lastSavedState[routeName]) lastSavedState[routeName] = {};
-                    for (let cat in tallyState[routeName]) {
-                        lastSavedState[routeName][cat] = tallyState[routeName][cat];
-                    }
-                }
-                localStorage.setItem(lastSavedKey, JSON.stringify(lastSavedState));
+            const response = await fetch(`${API_BASE}/tallies/${encodeURIComponent(targetTallierId)}`);
+            const data = await response.json();
+            if (data.success && data.records) {
+                loadAndDisplayAnalytics(data.records);
+            } else {
+                loadAndDisplayAnalytics([]);
             }
         } catch (err) {
-            console.error("Auto-sync background error:", err);
+            console.error('Error fetching analytics from server:', err);
+            loadAndDisplayAnalytics([]);
         }
     }
 
-    function renderCategories(routeIndex) {
-        const routeName = currentJunctionData.formattedRoutes[routeIndex];
-        const grid = document.getElementById(`categories-grid-${routeIndex}`);
-        if (!grid) return;
-        
-        const categories = Object.keys(tallyState[routeName] || {});
-        if (categories.length === 0) {
-            grid.innerHTML = `<span class="empty-notice" id="empty-notice-${routeIndex}">No vehicle categories added for this route yet.</span>`;
+    function loadAndDisplayAnalytics(records) {
+        const tbody = document.getElementById('analyticsTableBody');
+        if (!records || records.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" class="placeholder-text">No tally records captured yet. Start recording counts on the tally page.</td></tr>`;
+            updateChart([]);
+            updateLineChart([]);
             return;
         }
 
-        let gridHtml = '';
-        categories.forEach(cat => {
-            const count = tallyState[routeName][cat];
-            gridHtml += `
-                <div class="category-box">
-                    <div class="category-header">
-                        <span>${cat}</span>
-                        <button class="remove-cat-btn" onclick="removeCategory(${routeIndex}, '${cat}')">&times;</button>
-                    </div>
-                    <div class="category-count" id="count-val-${routeIndex}-${cat}">${count}</div>
-                    <div class="count-btn-group">
-                        <button class="btn-danger" onclick="updateCount(${routeIndex}, '${cat}', -1)">-</button>
-                        <button class="btn-success" onclick="updateCount(${routeIndex}, '${cat}', 1)">+ Count</button>
-                    </div>
-                </div>
-            `;
+        records.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        let groupedByJunction = {};
+        records.forEach(rec => {
+            const junction = rec.junction || 'Unknown Junction';
+            if (!groupedByJunction[junction]) groupedByJunction[junction] = [];
+            groupedByJunction[junction].push(rec);
         });
-        grid.innerHTML = gridHtml;
+
+        let html = '';
+        let overallTotal = 0;
+        let junctionIndex = 1;
+
+        for (const [junction, jRecords] of Object.entries(groupedByJunction)) {
+            html += `
+                <tr class="section-header-row">
+                    <td colspan="5" style="background-color: #eef2f7; color: #1d6fa5; font-weight: bold;"><strong>${junctionIndex}. Junction: ${junction}</strong></td>
+                </tr>
+            `;
+
+            let intervalMs = configIntervalMinutes * 60 * 1000;
+            let sessionStartTime = jRecords.length > 0 ? new Date(jRecords[0].timestamp).getTime() : Date.now();
+            let intervalsMap = {};
+
+            jRecords.forEach(rec => {
+                const recTime = rec.timestamp ? new Date(rec.timestamp).getTime() : Date.now();
+                const intervalIdx = Math.floor((recTime - sessionStartTime) / intervalMs);
+                
+                if (!intervalsMap[intervalIdx]) {
+                    const intStart = new Date(sessionStartTime + (intervalIdx * intervalMs));
+                    const intEnd = new Date(sessionStartTime + ((intervalIdx + 1) * intervalMs));
+                    intervalsMap[intervalIdx] = {
+                        label: `${intStart.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${intEnd.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`,
+                        aggregates: {}
+                    };
+                }
+
+                const route = rec.route || 'N/A';
+                const category = rec.category || 'N/A';
+                const mapKey = `${route}__${category}`;
+                const count = Number(rec.count || 0);
+
+                if (!intervalsMap[intervalIdx].aggregates[mapKey]) {
+                    intervalsMap[intervalIdx].aggregates[mapKey] = { route, category, count: 0 };
+                }
+                intervalsMap[intervalIdx].aggregates[mapKey].count += count;
+            });
+
+            let cumulativeRunningTotal = 0;
+            let intervalKeys = Object.keys(intervalsMap).sort((a, b) => Number(a) - Number(b));
+
+            intervalKeys.forEach((intKey) => {
+                const intervalObj = intervalsMap[intKey];
+                let intervalTotalCount = 0;
+
+                for (const [mapKey, agg] of Object.entries(intervalObj.aggregates)) {
+                    intervalTotalCount += agg.count;
+                    overallTotal += agg.count;
+
+                    html += `
+                        <tr>
+                            <td style="text-align: center; width: 40px; color: #888;">↳</td>
+                            <td><strong>${agg.route}</strong></td>
+                            <td>${agg.category}</td>
+                            <td>${intervalObj.label}</td>
+                            <td style="text-align: right; color: #1d6fa5; font-weight: bold;">${agg.count}</td>
+                        </tr>
+                    `;
+                }
+
+                cumulativeRunningTotal += intervalTotalCount;
+
+                html += `
+                    <tr style="background-color: #f1f5f9; font-weight: bold; border-top: 2px dashed #1d6fa5;">
+                        <td colspan="4" style="text-align: right; color: #1d6fa5;">[${configIntervalMinutes}-Min Interval Summary - Cumulative Total]:</td>
+                        <td style="text-align: right; color: #1d6fa5;">${cumulativeRunningTotal}</td>
+                    </tr>
+                `;
+            });
+
+            html += `<tr style="height: 8px;"><td colspan="5" style="border: none; background: transparent;">&nbsp;</td></tr>`;
+            junctionIndex++;
+        }
+
+        html += `
+            <tr class="overall-total-row">
+                <td colspan="4" style="text-align: right; font-weight: bold; font-size: 1.05em;">Overall Total Count:</td>
+                <td style="text-align: right; font-weight: bold; font-size: 1.05em; color: #28a745;">${overallTotal}</td>
+            </tr>
+        `;
+
+        tbody.innerHTML = html;
+        updateChart(records);
+        updateLineChart(records);
     }
 
-    function copyCategoriesToAll() {
-        if (!confirm("Are you sure you want to copy all vehicle categories from Route 1 to all other routes?")) return;
-        const route1Name = currentJunctionData.formattedRoutes[0];
-        const route1Categories = Object.keys(tallyState[route1Name]);
-        if (route1Categories.length === 0) return;
+    function updateChart(records) {
+        const ctx = document.getElementById('tallyChart').getContext('2d');
+        if (!records || records.length === 0) {
+            if (tallyChartInstance) { tallyChartInstance.destroy(); tallyChartInstance = null; }
+            return;
+        }
 
-        for (let i = 1; i < currentJunctionData.formattedRoutes.length; i++) {
-            route1Categories.forEach(cat => {
-                if (tallyState[currentJunctionData.formattedRoutes[i]][cat] === undefined) {
-                    tallyState[currentJunctionData.formattedRoutes[i]][cat] = 0;
+        const categories = [...new Set(records.map(r => r.category || 'Vehicle'))];
+        const routes = [...new Set(records.map(r => r.route || 'Route'))];
+        const colors = ['#1d6fa5', '#009688', '#8a2be2', '#e91e63', '#ff9800', '#4caf50'];
+
+        const datasets = routes.map((route, index) => {
+            const data = categories.map(cat => {
+                const match = records.filter(r => (r.category || 'Vehicle') === cat && (r.route || 'Route') === route);
+                return match.reduce((sum, curr) => sum + Number(curr.count || 0), 0);
+            });
+            return {
+                label: route,
+                data: data,
+                backgroundColor: colors[index % colors.length],
+                borderColor: colors[index % colors.length],
+                borderWidth: 1
+            };
+        });
+
+        if (tallyChartInstance) {
+            tallyChartInstance.data.labels = categories;
+            tallyChartInstance.data.datasets = datasets;
+            tallyChartInstance.update();
+        } else {
+            tallyChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: categories, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
                 }
             });
         }
-        saveTempTallyState();
-        for (let i = 1; i < currentJunctionData.formattedRoutes.length; i++) { renderCategories(i); }
-        alert("Categories successfully copied!");
     }
 
-    async function submitCounts() {
-        await autoSyncDeltas();
-        showToast("All counts successfully saved and synchronized!");
-        setTimeout(() => { window.location.href = 'tallier_analytics.html'; }, 800);
+    function updateLineChart(records) {
+        const ctx = document.getElementById('tallyLineChart').getContext('2d');
+        if (!records || records.length === 0) {
+            if (tallyLineChartInstance) { tallyLineChartInstance.destroy(); tallyLineChartInstance = null; }
+            return;
+        }
+
+        const intervalMs = configIntervalMinutes * 60 * 1000;
+        const sessionStartTime = new Date(records[0].timestamp).getTime();
+
+        let intervalsMap = {};
+        records.forEach(rec => {
+            const recTime = rec.timestamp ? new Date(rec.timestamp).getTime() : Date.now();
+            const intervalIdx = Math.floor((recTime - sessionStartTime) / intervalMs);
+            
+            if (!intervalsMap[intervalIdx]) {
+                const intStart = new Date(sessionStartTime + (intervalIdx * intervalMs));
+                const intEnd = new Date(sessionStartTime + ((intervalIdx + 1) * intervalMs));
+                intervalsMap[intervalIdx] = {
+                    label: `${intStart.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${intEnd.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`,
+                    counts: {}
+                };
+            }
+            const cat = rec.category || 'Vehicle';
+            const count = Number(rec.count || 0);
+            intervalsMap[intervalIdx].counts[cat] = (intervalsMap[intervalIdx].counts[cat] || 0) + count;
+        });
+
+        const intervalKeys = Object.keys(intervalsMap).sort((a, b) => Number(a) - Number(b));
+        const intervalLabels = intervalKeys.map(k => intervalsMap[k].label);
+        const categories = [...new Set(records.map(r => r.category || 'Vehicle'))];
+        const colors = ['#1d6fa5', '#28a745', '#dc3545', '#ffc107', '#6f42c1', '#20c997'];
+
+        const datasets = categories.map((cat, index) => {
+            let runningSum = 0;
+            const data = intervalKeys.map(k => {
+                const intervalCount = intervalsMap[k].counts[cat] || 0;
+                runningSum += intervalCount;
+                return runningSum;
+            });
+
+            return {
+                label: cat,
+                data: data,
+                borderColor: colors[index % colors.length],
+                backgroundColor: colors[index % colors.length],
+                fill: false,
+                tension: 0.1,
+                borderWidth: 2
+            };
+        });
+
+        if (tallyLineChartInstance) {
+            tallyLineChartInstance.data.labels = intervalLabels;
+            tallyLineChartInstance.data.datasets = datasets;
+            tallyLineChartInstance.update();
+        } else {
+            tallyLineChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { labels: intervalLabels, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: 'Cumulative Count' } },
+                        x: { title: { display: true, text: 'Time Interval' } }
+                    }
+                }
+            });
+        }
     }
 </script>
 

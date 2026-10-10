@@ -26,7 +26,7 @@
     </div>
 
     <div class="toolbar-row">
-        <span class="subtitle" id="userSubtitle">Viewing submitted traffic counts for: <span id="displayUsername" style="font-weight: bold; color: #1d6fa5;"></span> (Interval: <span id="displayInterval">15</span> mins)</span>
+        <span class="subtitle" id="userSubtitle">Viewing interval-aggregated traffic counts for: <span id="displayUsername" style="font-weight: bold; color: #1d6fa5;"></span> (Interval: <span id="displayInterval">15</span> mins)</span>
     </div>
 
     <div class="card table-card">
@@ -38,7 +38,7 @@
                         <th>Route</th>
                         <th>Vehicle Category</th>
                         <th>Time Interval</th>
-                        <th style="text-align: right;">Total Count</th>
+                        <th style="text-align: right;">Aggregated Count</th>
                     </tr>
                 </thead>
                 <tbody id="analyticsTableBody">
@@ -50,10 +50,19 @@
         </div>
     </div>
 
+    <!-- Bar Chart Card -->
     <div class="card chart-card">
         <h3>Visual Breakdown by Route & Category</h3>
         <div class="chart-container">
             <canvas id="tallyChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Interval-Aggregated Line Chart Card -->
+    <div class="card chart-card" style="margin-top: 25px;">
+        <h3>Vehicle Quantity vs. Time (Trendline by Category)</h3>
+        <div class="chart-container">
+            <canvas id="tallyLineChart"></canvas>
         </div>
     </div>
 </div>
@@ -67,6 +76,7 @@
     const targetTallierId = urlParams.get('tallier_id') || localStorage.getItem('username') || 'guest';
 
     let tallyChartInstance = null;
+    let tallyLineChartInstance = null;
     let configIntervalMinutes = 15;
 
     window.onload = async function() {
@@ -106,6 +116,7 @@
         if (!records || records.length === 0) {
             tbody.innerHTML = `<tr><td colspan="5" class="placeholder-text">No tally records captured yet. Start recording counts on the tally page.</td></tr>`;
             updateChart([]);
+            updateLineChart([]);
             return;
         }
 
@@ -125,53 +136,72 @@
         for (const [junction, jRecords] of Object.entries(groupedByJunction)) {
             html += `
                 <tr class="section-header-row">
-                    <td colspan="5"><strong>${junctionIndex}. Junction: ${junction} | Route</strong></td>
+                    <td colspan="5" style="background-color: #eef2f7; color: #1d6fa5; font-weight: bold;"><strong>${junctionIndex}. Junction: ${junction}</strong></td>
                 </tr>
             `;
 
-            let junctionTotal = 0;
-            let cumulativeRunningTotal = 0;
             let intervalMs = configIntervalMinutes * 60 * 1000;
             let sessionStartTime = jRecords.length > 0 ? new Date(jRecords[0].timestamp).getTime() : Date.now();
-            let currentIntervalEnd = sessionStartTime + intervalMs;
+            let intervalsMap = {};
 
-            jRecords.forEach((rec) => {
-                const count = Number(rec.count || 0);
-                junctionTotal += count;
-                overallTotal += count;
-                cumulativeRunningTotal += count;
-
+            jRecords.forEach(rec => {
                 const recTime = rec.timestamp ? new Date(rec.timestamp).getTime() : Date.now();
-
-                if (recTime >= currentIntervalEnd) {
-                    html += `
-                        <tr style="background-color: #eef2f7; font-weight: bold; border-top: 2px dashed #1d6fa5;">
-                            <td colspan="4" style="text-align: right; color: #1d6fa5;">[${configIntervalMinutes}-Min Interval Summary - Cumulative Total]:</td>
-                            <td style="text-align: right; color: #1d6fa5;">${cumulativeRunningTotal}</td>
-                        </tr>
-                    `;
-                    while (currentIntervalEnd <= recTime) {
-                        currentIntervalEnd += intervalMs;
-                    }
+                const intervalIdx = Math.floor((recTime - sessionStartTime) / intervalMs);
+                
+                if (!intervalsMap[intervalIdx]) {
+                    const intStart = new Date(sessionStartTime + (intervalIdx * intervalMs));
+                    const intEnd = new Date(sessionStartTime + ((intervalIdx + 1) * intervalMs));
+                    intervalsMap[intervalIdx] = {
+                        label: `${intStart.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${intEnd.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`,
+                        aggregates: {}
+                    };
                 }
 
-                html += `
-                    <tr>
-                        <td style="text-align: center; width: 40px; color: #888;">↳</td>
-                        <td><strong>${rec.route || 'N/A'}</strong></td>
-                        <td>${rec.category || 'N/A'}</td>
-                        <td>${rec.timestamp ? new Date(rec.timestamp).toLocaleTimeString() : 'N/A'}</td>
-                        <td style="text-align: right; color: #1d6fa5; font-weight: bold;">${count}</td>
-                    </tr>
-                `;
+                const route = rec.route || 'N/A';
+                const category = rec.category || 'N/A';
+                const mapKey = `${route}__${category}`;
+                const count = Number(rec.count || 0);
+
+                if (!intervalsMap[intervalIdx].aggregates[mapKey]) {
+                    intervalsMap[intervalIdx].aggregates[mapKey] = { route, category, count: 0 };
+                }
+                intervalsMap[intervalIdx].aggregates[mapKey].count += count;
             });
 
-            html += `
-                <tr class="subtotal-row">
-                    <td colspan="4" style="text-align: right; font-weight: bold;">Total Count:</td>
-                    <td style="text-align: right; font-weight: bold; color: #333;">${junctionTotal}</td>
-                </tr>
-            `;
+            let cumulativeRunningTotal = 0;
+            let intervalKeys = Object.keys(intervalsMap).sort((a, b) => Number(a) - Number(b));
+
+            intervalKeys.forEach((intKey) => {
+                const intervalObj = intervalsMap[intKey];
+                let intervalTotalCount = 0;
+
+                for (const [mapKey, agg] of Object.entries(intervalObj.aggregates)) {
+                    intervalTotalCount += agg.count;
+                    overallTotal += agg.count;
+
+                    html += `
+                        <tr>
+                            <td style="text-align: center; width: 40px; color: #888;">↳</td>
+                            <td><strong>${agg.route}</strong></td>
+                            <td>${agg.category}</td>
+                            <td>${intervalObj.label}</td>
+                            <td style="text-align: right; color: #1d6fa5; font-weight: bold;">${agg.count}</td>
+                        </tr>
+                    `;
+                }
+
+                cumulativeRunningTotal += intervalTotalCount;
+
+                html += `
+                    <tr style="background-color: #f1f5f9; font-weight: bold; border-top: 2px dashed #1d6fa5;">
+                        <td colspan="4" style="text-align: right; color: #1d6fa5;">[${configIntervalMinutes}-Min Interval Summary - Cumulative Total]:</td>
+                        <td style="text-align: right; color: #1d6fa5;">${cumulativeRunningTotal}</td>
+                    </tr>
+                `;
+                html += `<tr style="height: 15px;"><td colspan="5" style="border: none; background: transparent;">&nbsp;</td></tr>`;
+            });
+
+            html += `<tr style="height: 10px;"><td colspan="5" style="border: none; background: transparent;">&nbsp;</td></tr>`;
             junctionIndex++;
         }
 
@@ -184,15 +214,13 @@
 
         tbody.innerHTML = html;
         updateChart(records);
+        updateLineChart(records);
     }
 
     function updateChart(records) {
         const ctx = document.getElementById('tallyChart').getContext('2d');
         if (!records || records.length === 0) {
-            if (tallyChartInstance) {
-                tallyChartInstance.destroy();
-                tallyChartInstance = null;
-            }
+            if (tallyChartInstance) { tallyChartInstance.destroy(); tallyChartInstance = null; }
             return;
         }
 
@@ -226,6 +254,78 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                }
+            });
+        }
+    }
+
+    function updateLineChart(records) {
+        const ctx = document.getElementById('tallyLineChart').getContext('2d');
+        if (!records || records.length === 0) {
+            if (tallyLineChartInstance) { tallyLineChartInstance.destroy(); tallyLineChartInstance = null; }
+            return;
+        }
+
+        const intervalMs = configIntervalMinutes * 60 * 1000;
+        const sessionStartTime = new Date(records[0].timestamp).getTime();
+
+        let intervalsMap = {};
+        records.forEach(rec => {
+            const recTime = rec.timestamp ? new Date(rec.timestamp).getTime() : Date.now();
+            const intervalIdx = Math.floor((recTime - sessionStartTime) / intervalMs);
+            
+            if (!intervalsMap[intervalIdx]) {
+                const intStart = new Date(sessionStartTime + (intervalIdx * intervalMs));
+                const intEnd = new Date(sessionStartTime + ((intervalIdx + 1) * intervalMs));
+                intervalsMap[intervalIdx] = {
+                    label: `${intStart.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${intEnd.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`,
+                    counts: {}
+                };
+            }
+            const cat = rec.category || 'Vehicle';
+            const count = Number(rec.count || 0);
+            intervalsMap[intervalIdx].counts[cat] = (intervalsMap[intervalIdx].counts[cat] || 0) + count;
+        });
+
+        const intervalKeys = Object.keys(intervalsMap).sort((a, b) => Number(a) - Number(b));
+        const intervalLabels = intervalKeys.map(k => intervalsMap[k].label);
+        const categories = [...new Set(records.map(r => r.category || 'Vehicle'))];
+        const colors = ['#1d6fa5', '#28a745', '#dc3545', '#ffc107', '#6f42c1', '#20c997'];
+
+        const datasets = categories.map((cat, index) => {
+            let runningSum = 0;
+            const data = intervalKeys.map(k => {
+                const intervalCount = intervalsMap[k].counts[cat] || 0;
+                runningSum += intervalCount;
+                return runningSum;
+            });
+
+            return {
+                label: cat,
+                data: data,
+                borderColor: colors[index % colors.length],
+                backgroundColor: colors[index % colors.length],
+                fill: false,
+                tension: 0.1,
+                borderWidth: 2
+            };
+        });
+
+        if (tallyLineChartInstance) {
+            tallyLineChartInstance.data.labels = intervalLabels;
+            tallyLineChartInstance.data.datasets = datasets;
+            tallyLineChartInstance.update();
+        } else {
+            tallyLineChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { labels: intervalLabels, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: 'Cumulative Count' } },
+                        x: { title: { display: true, text: 'Time Interval' } }
+                    }
                 }
             });
         }

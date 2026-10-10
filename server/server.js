@@ -253,70 +253,175 @@ app.get('/api/tallies/:tallier_id', (req, res) => {
     });
 });
 
-// --- PROFESSIONAL EXCEL EXPORT FOR INDIVIDUAL TALLIER ---
+// --- BEAUTIFUL & ORGANIZED INTERVAL-AGGREGATED EXCEL EXPORT ENGINE ---
 app.get('/api/tallies/:tallier_id/export-excel', (req, res) => {
     const tallierId = req.params.tallier_id;
 
-    db.all(`SELECT * FROM tally_records WHERE tallier_id = ? ORDER BY timestamp ASC`, [tallierId], async (err, rows) => {
-        if (err) {
-            return res.status(500).json({ success: false, error: err.message });
-        }
+    db.get(`SELECT value FROM system_config WHERE key = 'interval'`, [], (err, configRow) => {
+        const configIntervalMinutes = configRow ? Number(configRow.value) : 15;
 
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Traffic Analytics');
+        db.all(`SELECT * FROM tally_records WHERE tallier_id = ? ORDER BY timestamp ASC`, [tallierId], async (err, rows) => {
+            if (err) {
+                return res.status(500).json({ success: false, error: err.message });
+            }
 
-        // Header and Title Formatting
-        worksheet.mergeCells('A1:E1');
-        const titleRow = worksheet.getCell('A1');
-        titleRow.value = `Traffic Tally Report - Tallier: ${tallierId}`;
-        titleRow.font = { size: 16, bold: true, color: { argb: 'FFFFFF' } };
-        titleRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1D6FA5' } };
-        titleRow.alignment = { vertical: 'middle', horizontal: 'center' };
-        worksheet.getRow(1).height = 40;
+            const workbook = new ExcelJS.Workbook();
+            workbook.creator = 'Traffic Tallying System';
+            const worksheet = workbook.addWorksheet('Traffic Analytics Summary', {
+                views: [{ showGridLines: true }]
+            });
 
-        // Table Column Headers
-        worksheet.addRow([]);
-        const headerRow = worksheet.addRow(['Junction', 'Route', 'Vehicle Category', 'Time', 'Total Count']);
-        headerRow.font = { bold: true, color: { argb: 'FFFFFF' } };
-        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2B3E50' } };
-        headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+            // 1. Title Banner
+            worksheet.mergeCells('A1:E1');
+            const titleCell = worksheet.getCell('A1');
+            titleCell.value = `TRAFFIC TALLY ANALYTICS REPORT - TALLIER: ${tallierId.toUpperCase()}`;
+            titleCell.font = { size: 14, bold: true, color: { argb: 'FFFFFF' } };
+            titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1D6FA5' } };
+            titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+            worksheet.getRow(1).height = 40;
 
-        let overallTotal = 0;
-        rows.forEach(r => {
-            const count = Number(r.count || 0);
-            overallTotal += count;
-            const row = worksheet.addRow([
-                r.junction || 'N/A',
-                r.route || 'N/A',
-                r.category || 'N/A',
-                r.timestamp ? new Date(r.timestamp).toLocaleTimeString() : 'N/A',
-                count
-            ]);
-            row.getCell(5).alignment = { horizontal: 'right' };
+            worksheet.addRow([]); // Blank spacing row
+
+            // 2. Table Column Headers
+            const headerRow = worksheet.addRow(['Junction', 'Route', 'Vehicle Category', 'Time Interval', 'Aggregated Count']);
+            headerRow.font = { bold: true, color: { argb: 'FFFFFF' } };
+            headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2B3E50' } };
+            headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+            worksheet.getRow(headerRow.number).height = 25;
+
+            // Group records by junction
+            let groupedByJunction = {};
+            rows.forEach(r => {
+                const junction = r.junction || 'Unknown Junction';
+                if (!groupedByJunction[junction]) groupedByJunction[junction] = [];
+                groupedByJunction[junction].push(r);
+            });
+
+            let overallTotal = 0;
+            let junctionIndex = 1;
+
+            for (const [junction, jRecords] of Object.entries(groupedByJunction)) {
+                // Junction Section Header Row
+                const jHeaderRow = worksheet.addRow([`${junctionIndex}. Junction: ${junction}`, '', '', '', '']);
+                worksheet.mergeCells(`A${jHeaderRow.number}:E${jHeaderRow.number}`);
+                jHeaderRow.font = { bold: true, size: 11, color: { argb: '1D6FA5' } };
+                jHeaderRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EEF2F7' } };
+                jHeaderRow.alignment = { vertical: 'middle', horizontal: 'left' };
+                worksheet.getRow(jHeaderRow.number).height = 22;
+
+                let junctionTotal = 0;
+                let intervalMs = configIntervalMinutes * 60 * 1000;
+                let sessionStartTime = jRecords.length > 0 ? new Date(jRecords[0].timestamp).getTime() : Date.now();
+                
+                let intervalsMap = {};
+                jRecords.forEach(rec => {
+                    const recTime = rec.timestamp ? new Date(rec.timestamp).getTime() : Date.now();
+                    const intervalIdx = Math.floor((recTime - sessionStartTime) / intervalMs);
+                    
+                    if (!intervalsMap[intervalIdx]) {
+                        const intStart = new Date(sessionStartTime + (intervalIdx * intervalMs));
+                        const intEnd = new Date(sessionStartTime + ((intervalIdx + 1) * intervalMs));
+                        intervalsMap[intervalIdx] = {
+                            label: `${intStart.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${intEnd.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`,
+                            aggregates: {}
+                        };
+                    }
+
+                    const route = rec.route || 'N/A';
+                    const category = rec.category || 'N/A';
+                    const mapKey = `${route}__${category}`;
+                    const count = Number(rec.count || 0);
+
+                    if (!intervalsMap[intervalIdx].aggregates[mapKey]) {
+                        intervalsMap[intervalIdx].aggregates[mapKey] = { route, category, count: 0 };
+                    }
+                    intervalsMap[intervalIdx].aggregates[mapKey].count += count;
+                });
+
+                let cumulativeRunningTotal = 0;
+                let intervalKeys = Object.keys(intervalsMap).sort((a, b) => Number(a) - Number(b));
+
+                intervalKeys.forEach((intKey) => {
+                    const intervalObj = intervalsMap[intKey];
+                    let intervalTotalCount = 0;
+
+                    for (const [mapKey, agg] of Object.entries(intervalObj.aggregates)) {
+                        intervalTotalCount += agg.count;
+                        junctionTotal += agg.count;
+                        overallTotal += agg.count;
+
+                        const dataRow = worksheet.addRow([
+                            junction,
+                            agg.route,
+                            agg.category,
+                            intervalObj.label,
+                            agg.count
+                        ]);
+                        dataRow.getCell(1).alignment = { horizontal: 'left' };
+                        dataRow.getCell(2).alignment = { horizontal: 'left' };
+                        dataRow.getCell(3).alignment = { horizontal: 'left' };
+                        dataRow.getCell(4).alignment = { horizontal: 'center' };
+                        dataRow.getCell(5).alignment = { horizontal: 'right' };
+                        dataRow.getCell(5).font = { bold: true, color: { argb: '1D6FA5' } };
+                    }
+
+                    cumulativeRunningTotal += intervalTotalCount;
+
+                    // Interval Summary Row with Cumulative Total
+                    const summaryRow = worksheet.addRow([
+                        `[${configIntervalMinutes}-Min Interval Summary - Cumulative Total]:`, '', '', '', cumulativeRunningTotal
+                    ]);
+                    worksheet.mergeCells(`A${summaryRow.number}:D${summaryRow.number}`);
+                    summaryRow.font = { bold: true, color: { argb: '1D6FA5' } };
+                    summaryRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F8F9FA' } };
+                    summaryRow.getCell(1).alignment = { horizontal: 'right' };
+                    summaryRow.getCell(5).alignment = { horizontal: 'right' };
+                    summaryRow.getCell(5).font = { bold: true, color: { argb: '1D6FA5' } };
+
+                    // Blank separator row between intervals
+                    worksheet.addRow([]);
+                });
+
+                // Junction Subtotal Row
+                const subRow = worksheet.addRow(['Junction Total Count', '', '', '', junctionTotal]);
+                worksheet.mergeCells(`A${subRow.number}:D${subRow.number}`);
+                subRow.font = { bold: true, color: { argb: '333333' } };
+                subRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'E9ECEF' } };
+                subRow.getCell(1).alignment = { horizontal: 'right' };
+                subRow.getCell(5).alignment = { horizontal: 'right' };
+
+                worksheet.addRow([]); // Blank row between junctions
+                junctionIndex++;
+            }
+
+            // Overall Total Grand Summary Row
+            const overallRow = worksheet.addRow(['Overall Total Count', '', '', '', overallTotal]);
+            worksheet.mergeCells(`A${overallRow.number}:D${overallRow.number}`);
+            overallRow.font = { bold: true, size: 12, color: { argb: 'FFFFFF' } };
+            overallRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '28A745' } };
+            overallRow.getCell(1).alignment = { horizontal: 'right' };
+            overallRow.getCell(5).alignment = { horizontal: 'right' };
+            overallRow.getCell(5).font = { bold: true, size: 12, color: { argb: 'FFFFFF' } };
+            worksheet.getRow(overallRow.number).height = 25;
+
+            // Auto-fit column widths gracefully
+            worksheet.columns = [
+                { width: 28 }, // Junction
+                { width: 28 }, // Route
+                { width: 22 }, // Category
+                { width: 22 }, // Time Interval
+                { width: 18 }  // Aggregated Count
+            ];
+
+            const todayStr = new Date().toISOString().split('T')[0];
+            const filename = `${tallierId}_Analytics_${todayStr}.xlsx`;
+
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+            await workbook.xlsx.write(res);
+            res.end();
         });
-
-        // Summary Total Row
-        const summaryRow = worksheet.addRow(['Overall Total Count', '', '', '', overallTotal]);
-        summaryRow.font = { bold: true };
-        summaryRow.getCell(5).alignment = { horizontal: 'right' };
-
-        // Column widths
-        worksheet.columns = [
-            { width: 25 },
-            { width: 25 },
-            { width: 20 },
-            { width: 15 },
-            { width: 15 }
-        ];
-
-        const todayStr = new Date().toISOString().split('T')[0];
-        const filename = `${tallierId}_Analytics_${todayStr}.xlsx`;
-
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-
-        await workbook.xlsx.write(res);
-        res.end();
     });
 });
 
