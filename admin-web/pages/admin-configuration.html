@@ -7,6 +7,29 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../css/admin-configuration.css">
+    <style>
+        /* Robust toast styling with smooth opacity & visibility transition */
+        .toast {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            padding: 16px 28px;
+            border-radius: 6px;
+            color: #fff;
+            font-weight: 600;
+            font-size: 1.1rem;
+            min-width: 280px;
+            text-align: center;
+            z-index: 1000;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+            transition: opacity 0.6s ease-in-out, visibility 0.6s ease-in-out;
+            opacity: 1;
+            visibility: visible;
+        }
+        .toast.success { background-color: var(--success-color, #28a745); }
+        .toast.error { background-color: var(--danger-color, #dc3545); }
+        .toast.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    </style>
 </head>
 <body>
     <div class="app-container">
@@ -134,12 +157,10 @@
     <script>
         const API_BASE = 'http://localhost:3000/api';
 
-        // Initialize local storage defaults for talliers
         if (!localStorage.getItem('tts_talliers')) {
             localStorage.setItem('tts_talliers', JSON.stringify([]));
         }
 
-        // Fetch interval from backend on load
         window.addEventListener('DOMContentLoaded', async () => {
             try {
                 const res = await fetch(`${API_BASE}/config`);
@@ -157,7 +178,20 @@
             const toast = document.getElementById('toast');
             toast.textContent = message;
             toast.className = `toast ${isError ? 'error' : 'success'}`;
-            setTimeout(() => { toast.classList.add('hidden'); }, 3000);
+            
+            if (toast.hideTimeout) clearTimeout(toast.hideTimeout);
+            if (toast.fadeTimeout) clearTimeout(toast.fadeTimeout);
+
+            toast.classList.remove('hidden');
+            toast.style.opacity = '1';
+            toast.style.visibility = 'visible';
+
+            toast.hideTimeout = setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.fadeTimeout = setTimeout(() => {
+                    toast.classList.add('hidden');
+                }, 600);
+            }, 5000);
         }
 
         function togglePasswordVisibility(fieldId, btn) {
@@ -190,7 +224,7 @@
                 });
                 const result = await res.json();
                 if (result.success) {
-                    showToast(`Interval updated to ${interval} minutes on backend.`);
+                    showToast(`Interval set to ${interval} minutes successfully.`);
                 } else {
                     showToast('Failed to update interval on backend.', true);
                 }

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Tallying System - Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/admin-dashboard.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- TOP NAVIGATION BAR -->
+        <header class="top-navbar">
+            <div class="nav-brand">
+                <i class="fa-solid fa-traffic-light"></i>
+                <span>Admin Dashboard</span>
+            </div>
+            <div class="nav-actions">
+                <a href="admin-configuration.html" class="btn btn-outline btn-sm">
+                    <i class="fa-solid fa-gear"></i> Configuration
+                </a>
+                <a href="admin_analytics.html" class="btn btn-primary btn-sm">
+                    <i class="fa-solid fa-chart-line"></i> Analytics
+                </a>
+            </div>
+        </header>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="main-content">
+            <!-- OVERVIEW SECTION -->
+            <section class="dashboard-section">
+                <div class="section-header">
+                    <h2>System Overview</h2>
+                    <p>Monitor active field tallier units and live deployment status.</p>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon bg-blue">
+                            <i class="fa-solid fa-users"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Registered Talliers</h3>
+                            <p id="total-talliers-count">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon bg-green">
+                            <i class="fa-solid fa-signal"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Active Units</h3>
+                            <p id="active-talliers-count">0</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- REGISTERED TALLIERS SECTION -->
+            <section class="dashboard-section">
+                <div class="section-header flex-row">
+                    <div>
+                        <h2>Field Tallier Units</h2>
+                        <p>Real-time list of talliers synchronized from configuration.</p>
+                    </div>
+                    <a href="admin-configuration.html" class="btn btn-primary btn-sm">
+                        <i class="fa-solid fa-plus"></i> Manage Talliers
+                    </a>
+                </div>
+
+                <div id="talliers-grid" class="talliers-grid">
+                    <!-- Dynamically populated tallier divs appear here -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // Load and render talliers dynamically from localStorage ('tts_talliers')
+        window.addEventListener('DOMContentLoaded', () => {
+            renderDashboardTalliers();
+        });
+
+        function renderDashboardTalliers() {
+            let talliers = [];
+            try {
+                talliers = JSON.parse(localStorage.getItem('tts_talliers')) || [];
+            } catch (err) {
+                console.error('Error parsing talliers from localStorage:', err);
+                talliers = [];
+            }
+
+            const gridContainer = document.getElementById('talliers-grid');
+            const totalCountEl = document.getElementById('total-talliers-count');
+            const activeCountEl = document.getElementById('active-talliers-count');
+
+            totalCountEl.textContent = talliers.length;
+            const activeTalliers = talliers.filter(t => t.active !== false);
+            activeCountEl.textContent = activeTalliers.length;
+
+            if (talliers.length === 0) {
+                gridContainer.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fa-solid fa-users-slash"></i>
+                        <p>No tallier accounts configured yet.</p>
+                        <a href="admin-configuration.html" class="btn btn-primary btn-sm">Add Tallier in Configuration</a>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            talliers.forEach(t => {
+                const isActive = t.active !== false;
+                html += `
+                    <div class="tallier-card ${isActive ? '' : 'inactive'}">
+                        <div class="tallier-card-header">
+                            <span class="tallier-name"><i class="fa-solid fa-user-tie"></i> ${t.username}</span>
+                            <span class="badge ${isActive ? 'badge-success' : 'badge-danger'}">${isActive ? 'Active' : 'Inactive'}</span>
+                        </div>
+                        <div class="tallier-card-body">
+                            <p><i class="fa-solid fa-location-dot"></i> <strong>Location:</strong> ${t.location || 'Not Specified'}</p>
+                            <p><i class="fa-solid fa-clock"></i> <strong>Last Sync:</strong> ${t.lastSync || 'Never'}</p>
+                        </div>
+                        <div class="tallier-card-footer">
+                            <a href="admin-configuration.html" class="text-btn">Configure Settings &rarr;</a>
+                        </div>
+                    </div>
+                `;
+            });
+
+            gridContainer.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

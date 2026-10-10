@@ -23,7 +23,7 @@
 
     <!-- Toolbar Row -->
     <div class="toolbar-row">
-        <span class="subtitle" id="userSubtitle">Viewing submitted traffic counts for: <span id="displayUsername"></span></span>
+        <span class="subtitle" id="userSubtitle">Viewing submitted traffic counts for: <span id="displayUsername"></span> (Interval: <span id="displayInterval">15</span> mins)</span>
         <button class="btn btn-danger" onclick="clearAnalyticsData()">🗑️ Clear My Records</button>
     </div>
 
@@ -59,14 +59,28 @@
 </div>
 
 <script>
-    // Username and storage keys matching tallier configuration and tally pages
+    const API_BASE = 'http://localhost:3000/api';
     const username = localStorage.getItem('username') || 'guest';
     const countsStorageKey = `traffic_counts_${username}`;
 
     let tallyChartInstance = null;
+    let configIntervalMinutes = 15; // Default fallback
 
-    window.onload = function() {
+    window.onload = async function() {
         document.getElementById('displayUsername').textContent = username;
+        
+        // Fetch configured interval from backend
+        try {
+            const res = await fetch(`${API_BASE}/config`);
+            const data = await res.json();
+            if (data && data.interval) {
+                configIntervalMinutes = Number(data.interval);
+            }
+        } catch (err) {
+            console.error('Could not fetch interval from backend, using default 15 mins.', err);
+        }
+        
+        document.getElementById('displayInterval').textContent = configIntervalMinutes;
         loadAndDisplayAnalytics();
     };
 
@@ -84,6 +98,9 @@
             updateChart([]);
             return;
         }
+
+        // Sort records chronologically for interval grouping
+        records.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
         // Group records by Junction
         let groupedByJunction = {};
@@ -107,17 +124,41 @@
             `;
 
             let junctionTotal = 0;
-            jRecords.forEach(rec => {
-                const count = rec.count || 0;
+            let cumulativeRunningTotal = 0;
+            
+            // Interval grouping helper variables based on configIntervalMinutes
+            let intervalMs = configIntervalMinutes * 60 * 1000;
+            let sessionStartTime = jRecords.length > 0 ? new Date(jRecords[0].timestamp).getTime() : Date.now();
+            let currentIntervalEnd = sessionStartTime + intervalMs;
+
+            jRecords.forEach((rec, idx) => {
+                const count = Number(rec.count || 0);
                 junctionTotal += count;
                 overallTotal += count;
+                cumulativeRunningTotal += count;
+
+                const recTime = rec.timestamp ? new Date(rec.timestamp).getTime() : Date.now();
+
+                // Check if we crossed an interval boundary (insert summary once per boundary crossed)
+                if (recTime >= currentIntervalEnd) {
+                    html += `
+                        <tr style="background-color: #eef2f7; font-weight: bold; border-top: 2px dashed #1d6fa5;">
+                            <td colspan="4" style="text-align: right; color: #1d6fa5;">[${configIntervalMinutes}-Min Interval Summary - Cumulative Total]:</td>
+                            <td style="text-align: right; color: #1d6fa5;">${cumulativeRunningTotal}</td>
+                        </tr>
+                    `;
+                    // Advance interval end past current record time to prevent duplicate stacking on time gaps
+                    while (currentIntervalEnd <= recTime) {
+                        currentIntervalEnd += intervalMs;
+                    }
+                }
 
                 html += `
                     <tr>
                         <td style="text-align: center; width: 40px; color: #888;">↳</td>
                         <td><strong>${rec.route || 'N/A'}</strong></td>
                         <td>${rec.category || 'N/A'}</td>
-                        <td>${rec.timeInterval || 'N/A'}</td>
+                        <td>${rec.timestamp ? new Date(rec.timestamp).toLocaleTimeString() : 'N/A'}</td>
                         <td style="text-align: right; color: #1d6fa5; font-weight: bold;">${count}</td>
                     </tr>
                 `;
@@ -162,7 +203,7 @@
         const datasets = routes.map((route, index) => {
             const data = categories.map(cat => {
                 const match = records.filter(r => (r.category || 'Vehicle') === cat && (r.route || 'Route') === route);
-                return match.reduce((sum, curr) => sum + (curr.count || 0), 0);
+                return match.reduce((sum, curr) => sum + Number(curr.count || 0), 0);
             });
             return {
                 label: route,

@@ -439,6 +439,9 @@
         document.getElementById(`count-val-${routeIndex}-${categoryName}`).textContent = tallyState[routeName][categoryName];
         saveTempTallyState();
 
+        // Automatically save & sync deltas immediately on count click without navigating away
+        saveAndSyncData(false);
+
         const keyLower = categoryName.toLowerCase();
         if (keyLower.includes('motorcycle') || keyLower.includes('moto') || keyLower.includes('boda')) {
             unsyncedDelta.motorcycles = Math.max(0, unsyncedDelta.motorcycles + change);
@@ -550,17 +553,13 @@
         alert("Categories successfully copied to all other routes!");
     }
 
-    async function submitCounts() {
-        if (!currentJunctionData) {
-            alert("Please select a junction first.");
-            return;
-        }
+    // Reusable save & sync helper (prevents duplication using delta comparison with lastSavedState)
+    function saveAndSyncData(shouldNavigate = false) {
+        if (!currentJunctionData) return;
 
-        let totalNewCount = 0;
         let submittedData = [];
         const lastSavedKey = `last_saved_state_${username}_${currentJunctionData.id}`;
 
-        // Calculate incremental difference (delta) since last save
         for (let routeName in tallyState) {
             if (!lastSavedState[routeName]) lastSavedState[routeName] = {};
             for (let cat in tallyState[routeName]) {
@@ -569,7 +568,6 @@
                 const delta = currentVal - prevSavedVal;
 
                 if (delta > 0) {
-                    totalNewCount += delta;
                     submittedData.push({
                         junction: currentJunctionData.name,
                         junction_name: currentJunctionData.name,
@@ -584,14 +582,7 @@
             }
         }
 
-        try {
-            await pushCountsToBackend(true);
-        } catch (err) {
-            console.error("Backend sync failed:", err);
-        }
-
         if (submittedData.length > 0) {
-            // Save to both user-specific key and generic key so analytics reads it successfully
             const genericCountsKey = 'traffic_counts';
             
             let existingCounts = [];
@@ -607,7 +598,7 @@
             localStorage.setItem(countsStorageKey, JSON.stringify(existingCounts.concat(submittedData)));
             localStorage.setItem(genericCountsKey, JSON.stringify(existingGenericCounts.concat(submittedData)));
 
-            // Update lastSavedState tracking
+            // Update lastSavedState tracking so deltas aren't saved twice
             for (let routeName in tallyState) {
                 if (!lastSavedState[routeName]) lastSavedState[routeName] = {};
                 for (let cat in tallyState[routeName]) {
@@ -617,8 +608,25 @@
             localStorage.setItem(lastSavedKey, JSON.stringify(lastSavedState));
         }
 
-        // Instantly navigate to analytics page
-        window.location.href = 'tallier_analytics.html';
+        if (shouldNavigate) {
+            window.location.href = 'tallier_analytics.html';
+        }
+    }
+
+    async function submitCounts() {
+        if (!currentJunctionData) {
+            alert("Please select a junction first.");
+            return;
+        }
+
+        try {
+            await pushCountsToBackend(true);
+        } catch (err) {
+            console.error("Backend sync failed:", err);
+        }
+
+        // Save, sync, and navigate to analytics page
+        saveAndSyncData(true);
     }
 </script>
 

@@ -1,321 +1,376 @@
-/* ==========================================================================
-   Admin Configuration Page - Specific Styles
-   ========================================================================== */
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Tallying System - Admin Configuration</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/admin-configuration.css">
+    <style>
+        /* Robust toast styling with smooth opacity & visibility transition */
+        .toast {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            padding: 16px 28px;
+            border-radius: 6px;
+            color: #fff;
+            font-weight: 600;
+            font-size: 1.1rem;
+            min-width: 280px;
+            text-align: center;
+            z-index: 1000;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+            transition: opacity 0.6s ease-in-out, visibility 0.6s ease-in-out;
+            opacity: 1;
+            visibility: visible;
+        }
+        .toast.success { background-color: var(--success-color, #28a745); }
+        .toast.error { background-color: var(--danger-color, #dc3545); }
+        .toast.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Toast Notification Box -->
+        <div id="toast" class="toast hidden"></div>
 
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-    font-family: 'Inter', sans-serif;
-}
+        <!-- TOP NAVIGATION BAR -->
+        <header class="top-navbar">
+            <div class="nav-brand">
+                <i class="fa-solid fa-traffic-light"></i>
+                <span>Admin Configuration</span>
+            </div>
+            <div class="nav-actions">
+                <a href="admin_dashboard.html" class="btn btn-outline btn-sm">Dashboard</a>
+                <a href="admin_analytics.html" class="btn btn-primary btn-sm">Analytics</a>
+            </div>
+        </header>
 
-body {
-    background-color: #f4f6f8;
-    color: #1f2937;
-    line-height: 1.5;
-}
+        <!-- MAIN CONTENT AREA -->
+        <main class="main-content">
+            <!-- SECTION 1: ANALYTICS INTERVAL CONFIGURATION -->
+            <section class="config-section">
+                <div class="section-header-simple">
+                    <h2>Analytics Interval</h2>
+                    <p>Set the traffic data grouping interval in minutes.</p>
+                </div>
+                <div class="config-box">
+                    <form id="interval-form" onsubmit="handleSaveInterval(event)">
+                        <div class="inline-group">
+                            <label for="analytics-interval">Interval (Minutes):</label>
+                            <input type="number" id="analytics-interval" min="1" max="1440" value="15" required class="input-number">
+                            <button type="submit" class="btn btn-success btn-sm">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
 
-.app-container {
-    max-width: 1000px;
-    margin: 0 auto;
-    padding: 24px;
-}
+            <!-- SECTION 2: TALLIER MANAGEMENT -->
+            <section class="config-section">
+                <div class="section-header-simple flex-row">
+                    <div>
+                        <h2>Tallier Accounts</h2>
+                        <p>Manage individual tallier credentials and locations.</p>
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="openTallierModal()">
+                        <i class="fa-solid fa-plus"></i> Add Tallier
+                    </button>
+                </div>
 
-/* Top Navbar */
-.top-navbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #ffffff;
-    padding: 16px 24px;
-    border-radius: 8px;
-    border: 1px solid #e5e7eb;
-    margin-bottom: 32px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
-}
+                <div class="table-container">
+                    <table class="simple-table">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Location</th>
+                                <th>Status</th>
+                                <th>Last Sync</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="talliers-table-body">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
 
-.nav-brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-weight: 600;
-    font-size: 1.1rem;
-    color: #111827;
-}
+    <!-- CREATE / EDIT TALLIER MODAL -->
+    <div id="tallier-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h3 id="modal-title">Create New Tallier</h3>
+            <form id="tallier-form" onsubmit="handleSaveTallier(event)">
+                <input type="hidden" id="edit-tallier-id">
+                <div class="form-group">
+                    <label for="tallier-username">Username</label>
+                    <input type="text" id="tallier-username" placeholder="e.g. Tallier_001" required>
+                </div>
+                <div class="form-group" id="password-group">
+                    <label for="tallier-password">Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="tallier-password" placeholder="Password" required>
+                        <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('tallier-password', this)">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="tallier-location">Location</label>
+                    <input type="text" id="tallier-location" placeholder="e.g. Junction A" required>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="closeTallierModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-.nav-actions {
-    display: flex;
-    gap: 10px;
-}
+    <!-- RESET PASSWORD MODAL -->
+    <div id="reset-password-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <h3>Reset Password</h3>
+            <p class="modal-sub text-muted" style="font-size:0.875rem; margin-bottom:12px;">Set a new password for <span id="reset-target-name" class="font-bold"></span>.</p>
+            <form onsubmit="handleExecutePasswordReset(event)">
+                <input type="hidden" id="reset-tallier-id">
+                <div class="form-group">
+                    <label for="new-tallier-password">New Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="new-tallier-password" placeholder="New password" required>
+                        <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('new-tallier-password', this)">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="closeResetModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success btn-sm">Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-/* Buttons & Badges */
-.btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
-    border-radius: 6px;
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    border: 1px solid transparent;
-    text-decoration: none;
-    transition: background 0.2s;
-}
+    <script>
+        const API_BASE = 'http://localhost:3000/api';
 
-.btn-sm {
-    padding: 5px 10px;
-    font-size: 0.8125rem;
-}
+        if (!localStorage.getItem('tts_talliers')) {
+            localStorage.setItem('tts_talliers', JSON.stringify([]));
+        }
 
-.btn-primary { background: #2563eb; color: #fff; }
-.btn-primary:hover { background: #1d4ed8; }
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const res = await fetch(`${API_BASE}/config`);
+                const data = await res.json();
+                if (data.interval) {
+                    document.getElementById('analytics-interval').value = data.interval;
+                }
+            } catch (err) {
+                console.error('Failed to load interval from backend, using default.', err);
+            }
+            renderTalliersTable();
+        });
 
-.btn-success { background: #059669; color: #fff; }
-.btn-success:hover { background: #047857; }
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${isError ? 'error' : 'success'}`;
+            
+            if (toast.hideTimeout) clearTimeout(toast.hideTimeout);
+            if (toast.fadeTimeout) clearTimeout(toast.fadeTimeout);
 
-.btn-outline { background: transparent; border-color: #d1d5db; color: #374151; }
-.btn-outline:hover { background: #f9fafb; }
+            toast.classList.remove('hidden');
+            toast.style.opacity = '1';
+            toast.style.visibility = 'visible';
 
-/* Configuration Sections */
-.config-section {
-    margin-bottom: 32px;
-}
+            toast.hideTimeout = setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.fadeTimeout = setTimeout(() => {
+                    toast.classList.add('hidden');
+                }, 600);
+            }, 5000);
+        }
 
-.section-header-simple {
-    margin-bottom: 12px;
-}
+        function togglePasswordVisibility(fieldId, btn) {
+            const input = document.getElementById(fieldId);
+            const icon = btn.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
 
-.section-header-simple.flex-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
+        async function handleSaveInterval(e) {
+            e.preventDefault();
+            const interval = parseInt(document.getElementById('analytics-interval').value);
+            if (interval <= 0) {
+                showToast('Interval must be at least 1 minute.', true);
+                return;
+            }
 
-.section-header-simple h2 {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #111827;
-    margin-bottom: 2px;
-}
+            try {
+                const res = await fetch(`${API_BASE}/config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ interval })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    showToast(`Interval set to ${interval} minutes successfully.`);
+                } else {
+                    showToast('Failed to update interval on backend.', true);
+                }
+            } catch (err) {
+                console.error('Network error updating interval:', err);
+                showToast('Network error saving interval.', true);
+            }
+        }
 
-.section-header-simple p {
-    font-size: 0.875rem;
-    color: #6b7280;
-}
+        function renderTalliersTable() {
+            const talliers = JSON.parse(localStorage.getItem('tts_talliers')) || [];
+            const tbody = document.getElementById('talliers-table-body');
+            tbody.innerHTML = '';
 
-.config-box {
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 16px 20px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
-}
+            if (talliers.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding: 24px;">No tallier accounts created yet. Click "Add Tallier" to start.</td></tr>`;
+                return;
+            }
 
-.inline-group {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-}
+            talliers.forEach(t => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${t.username}</strong></td>
+                    <td>${t.location}</td>
+                    <td><span class="badge ${t.active ? 'badge-success' : 'badge-danger'}">${t.active ? 'Active' : 'Inactive'}</span></td>
+                    <td class="text-muted">${t.lastSync}</td>
+                    <td>
+                        <div class="action-links">
+                            <button type="button" class="text-btn text-primary" onclick="editTallier('${t.id}')">Edit</button>
+                            <button type="button" class="text-btn text-dark" onclick="openResetModal('${t.id}', '${t.username}')">Reset</button>
+                            <button type="button" class="text-btn ${t.active ? 'text-warning' : 'text-success'}" onclick="toggleTallierStatus('${t.id}')">${t.active ? 'Deactivate' : 'Activate'}</button>
+                            <button type="button" class="text-btn text-danger" onclick="deleteTallier('${t.id}', '${t.username}')">Delete</button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
 
-.inline-group label {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: #374151;
-}
+        function openTallierModal(isEdit = false) {
+            document.getElementById('tallier-modal').classList.remove('hidden');
+            if (!isEdit) {
+                document.getElementById('modal-title').textContent = 'Create New Tallier';
+                document.getElementById('tallier-form').reset();
+                document.getElementById('edit-tallier-id').value = '';
+                document.getElementById('password-group').style.display = 'block';
+                document.getElementById('tallier-password').setAttribute('required', 'required');
+            }
+        }
 
-.input-number {
-    width: 90px;
-    padding: 6px 10px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 0.875rem;
-    outline: none;
-}
+        function closeTallierModal() {
+            document.getElementById('tallier-modal').classList.add('hidden');
+        }
 
-.input-number:focus {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
-}
+        function handleSaveTallier(e) {
+            e.preventDefault();
+            const id = document.getElementById('edit-tallier-id').value;
+            const username = document.getElementById('tallier-username').value.trim();
+            const location = document.getElementById('tallier-location').value.trim();
+            const password = document.getElementById('tallier-password').value;
 
-/* Tables */
-.table-container {
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    overflow-x: auto;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
-}
+            let talliers = JSON.parse(localStorage.getItem('tts_talliers')) || [];
 
-.simple-table {
-    width: 100%;
-    border-collapse: collapse;
-    text-align: left;
-    font-size: 0.875rem;
-}
+            if (id) {
+                talliers = talliers.map(t => t.id === id ? { ...t, username, location } : t);
+                showToast(`Tallier ${username} updated.`);
+            } else {
+                talliers.push({
+                    id: Date.now().toString(),
+                    username,
+                    location,
+                    active: true,
+                    lastSync: 'Never',
+                    password: password || 'password123'
+                });
+                showToast(`Tallier ${username} created.`);
+            }
 
-.simple-table th {
-    background: #f9fafb;
-    color: #4b5563;
-    font-weight: 600;
-    padding: 10px 16px;
-    border-bottom: 1px solid #e5e7eb;
-}
+            localStorage.setItem('tts_talliers', JSON.stringify(talliers));
+            closeTallierModal();
+            renderTalliersTable();
+        }
 
-.simple-table td {
-    padding: 12px 16px;
-    border-bottom: 1px solid #f3f4f6;
-    color: #1f2937;
-    vertical-align: middle;
-}
+        function editTallier(id) {
+            const talliers = JSON.parse(localStorage.getItem('tts_talliers')) || [];
+            const t = talliers.find(item => item.id === id);
+            if (!t) return;
 
-.simple-table tr:last-child td {
-    border-bottom: none;
-}
+            openTallierModal(true);
+            document.getElementById('modal-title').textContent = 'Edit Tallier';
+            document.getElementById('edit-tallier-id').value = t.id;
+            document.getElementById('tallier-username').value = t.username;
+            document.getElementById('tallier-location').value = t.location;
+            document.getElementById('password-group').style.display = 'none';
+            document.getElementById('tallier-password').removeAttribute('required');
+        }
 
-/* Action Links & Badges */
-.action-links {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-}
+        function toggleTallierStatus(id) {
+            let talliers = JSON.parse(localStorage.getItem('tts_talliers')) || [];
+            talliers = talliers.map(t => {
+                if (t.id === id) {
+                    t.active = !t.active;
+                    showToast(`Tallier ${t.username} ${t.active ? 'activated' : 'deactivated'}.`);
+                }
+                return t;
+            });
+            localStorage.setItem('tts_talliers', JSON.stringify(talliers));
+            renderTalliersTable();
+        }
 
-.text-btn {
-    background: none;
-    border: none;
-    padding: 0;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    cursor: pointer;
-    text-decoration: none;
-}
+        function deleteTallier(id, username) {
+            if (confirm(`Delete tallier "${username}"?`)) {
+                let talliers = JSON.parse(localStorage.getItem('tts_talliers')) || [];
+                talliers = talliers.filter(t => t.id !== id);
+                localStorage.setItem('tts_talliers', JSON.stringify(talliers));
+                renderTalliersTable();
+                showToast(`Tallier ${username} deleted.`);
+            }
+        }
 
-.text-btn:hover {
-    text-decoration: underline;
-}
+        function openResetModal(id, username) {
+            document.getElementById('reset-tallier-id').value = id;
+            document.getElementById('reset-target-name').textContent = username;
+            document.getElementById('new-tallier-password').value = '';
+            document.getElementById('reset-password-modal').classList.remove('hidden');
+        }
 
-.badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-.badge-success { background-color: #d1fae5; color: #065f46; }
-.badge-danger { background-color: #fee2e2; color: #991b1b; }
+        function closeResetModal() {
+            document.getElementById('reset-password-modal').classList.add('hidden');
+        }
 
-.text-primary { color: #2563eb; }
-.text-dark { color: #4b5563; }
-.text-warning { color: #d97706; }
-.text-success { color: #059669; }
-.text-danger { color: #dc2626; }
-.font-bold { font-weight: 600; }
-.text-center { text-align: center; }
-.text-muted { color: #6b7280; }
+        function handleExecutePasswordReset(e) {
+            e.preventDefault();
+            const id = document.getElementById('reset-tallier-id').value;
+            const newPass = document.getElementById('new-tallier-password').value;
 
-/* Modals & Password Input with Eye Icon */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-}
+            let talliers = JSON.parse(localStorage.getItem('tts_talliers')) || [];
+            talliers = talliers.map(t => {
+                if (t.id === id) t.password = newPass;
+                return t;
+            });
 
-.hidden {
-    display: none !important;
-}
-
-.modal-card {
-    background: #ffffff;
-    padding: 24px;
-    border-radius: 10px;
-    width: 100%;
-    max-width: 400px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-}
-
-.modal-card h3 {
-    font-size: 1.15rem;
-    margin-bottom: 16px;
-}
-
-.form-group {
-    margin-bottom: 14px;
-}
-
-.form-group label {
-    display: block;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: #374151;
-    margin-bottom: 4px;
-}
-
-.form-group input {
-    width: 100%;
-    padding: 8px 10px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 0.875rem;
-    outline: none;
-}
-
-.form-group input:focus {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
-}
-
-.password-wrapper {
-    position: relative;
-    display: flex;
-    align-items: center;
-}
-
-.password-wrapper input {
-    padding-right: 36px;
-}
-
-.password-toggle-btn {
-    position: absolute;
-    right: 10px;
-    background: none;
-    border: none;
-    color: #6b7280;
-    cursor: pointer;
-    font-size: 0.875rem;
-    padding: 4px;
-}
-
-.password-toggle-btn:hover {
-    color: #1f2937;
-}
-
-.modal-buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 20px;
-}
-
-/* Toast Notifications */
-.toast {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: #111827;
-    color: #fff;
-    padding: 10px 18px;
-    border-radius: 6px;
-    font-size: 0.875rem;
-    z-index: 1100;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-}
-.toast.success { background: #059669; }
-.toast.error { background: #dc2626; }
+            localStorage.setItem('tts_talliers', JSON.stringify(talliers));
+            closeResetModal();
+            showToast('Password reset successful.');
+        }
+    </script>
+</body>
+</html>
