@@ -12,11 +12,16 @@ app.use(cors());
 app.use(express.json());
 
 // ================= STATIC FOLDER ROUTING =================
-// Serve Admin browser application
-app.use('/admin', express.static(path.join(__dirname, 'admin-web')));
+// Serve Admin browser application (resolved from server directory)
+app.use('/admin', express.static(path.join(__dirname, '../admin-web')));
 
-// Serve Tallier PWA application
-app.use('/tallier', express.static(path.join(__dirname, 'tallier-web')));
+// Serve Tallier PWA application (resolved from server directory)
+app.use('/tallier', express.static(path.join(__dirname, '../tallier-web')));
+
+// Root route redirect to Admin Login page automatically
+app.get('/', (req, res) => {
+    res.redirect('/admin/pages/admin-login.html');
+});
 // ========================================================
 
 // Configure Nodemailer transporter using your .env SMTP variables
