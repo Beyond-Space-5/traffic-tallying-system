@@ -1,8 +1,10 @@
 const CACHE_NAME = 'traffic-tally-v1';
 const ASSETS_TO_CACHE = [
   '/tallier/pages/tallier_login.html',
+  '/tallier/pages/tallier_configuration.html',
   '/tallier/pages/tallier_tally.html',
   '/tallier/pages/tallier_analytics.html',
+  '/tallier/manifest.json',
   '/tallier/css/tallier_login.css',
   '/tallier/css/tallier_analytics.css'
 ];

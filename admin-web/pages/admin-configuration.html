@@ -125,9 +125,8 @@
     </div>
 
     <script>
-        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:3000/api'
-            : 'https://your-production-backend-url.com/api';
+        // Use relative path so it automatically works locally and on Render production
+        const API_BASE = '/api';
 
         window.addEventListener('DOMContentLoaded', async () => {
             const adminId = localStorage.getItem('tts_admin_id');

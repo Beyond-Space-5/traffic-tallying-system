@@ -69,9 +69,8 @@
 </div>
 
 <script>
-    const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? 'http://localhost:3000/api'
-        : 'https://your-production-backend-url.com/api';
+    // Use relative path so it automatically works locally and on Render production
+    const API_BASE = '/api';
     
     const urlParams = new URLSearchParams(window.location.search);
     const targetTallierId = urlParams.get('tallier_id') || localStorage.getItem('username') || 'guest';

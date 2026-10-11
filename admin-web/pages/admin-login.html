@@ -115,9 +115,8 @@
     </div>
 
     <script>
-        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:3000/api'
-            : 'https://your-production-backend-url.com/api';
+        // Use relative path so it automatically uses localhost in dev and the live domain on Render
+        const API_BASE = '/api';
 
         function switchView(viewId) {
             document.getElementById('login-view').classList.add('hidden');
