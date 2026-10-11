@@ -133,9 +133,17 @@
         .remove-cat-btn:hover { color: var(--danger-color); }
         .category-count { font-size: 1.8rem; font-weight: bold; color: var(--secondary-color); margin-bottom: 10px; }
         .count-btn-group { display: flex; gap: 5px; }
-        .count-btn-group button { flex: 1; padding: 14px; height: px; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .count-btn-group button { flex: 1; padding: 14px; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .empty-notice { color: #6c757d; font-style: italic; font-size: 0.9rem; }
         .placeholder-text { text-align: center; color: #6c757d; padding: 30px; }
+
+        /* Synchronized Vehicle Category Button Colors */
+        .category-box[data-category="Car"] .category-count { color: #1d6fa5; }
+        .category-box[data-category="Truck"] .category-count { color: #d9534f; }
+        .category-box[data-category="Bus"] .category-count { color: #d97706; }
+        .category-box[data-category="Motorcycle"] .category-count { color: #16a34a; }
+        .category-box[data-category="Bicycle"] .category-count { color: #7c3aed; }
+        .category-box[data-category="Pedestrian"] .category-count { color: #db2777; }
 
         .toast {
             position: fixed;
@@ -231,6 +239,7 @@
         const toast = document.getElementById('toast');
         toast.textContent = message;
         toast.className = `toast ${isError ? 'error' : 'success'}`;
+        toast.classList.remove('hidden');
         setTimeout(() => { toast.classList.add('hidden'); }, 3000);
     }
 
@@ -293,7 +302,7 @@
                 <div class="route-card" id="route-card-${index}">
                     <div class="route-title">Route ${index + 1}: ${route}</div>
                     <div class="category-input-row">
-                        <input type="text" id="input-cat-${index}" placeholder="Enter vehicle category (e.g., Matatu, Car, Truck)">
+                        <input type="text" id="input-cat-${index}" placeholder="Enter vehicle category (e.g., Car, Truck, Bus)">
                         <button class="btn btn-primary" onclick="addCategory(${index})">+ Add Category</button>
                     </div>
                     <div id="categories-grid-${index}" class="categories-grid">
@@ -413,7 +422,7 @@
         categories.forEach(cat => {
             const count = tallyState[routeName][cat];
             gridHtml += `
-                <div class="category-box">
+                <div class="category-box" data-category="${cat}">
                     <div class="category-header">
                         <span>${cat}</span>
                         <button class="remove-cat-btn" onclick="removeCategory(${routeIndex}, '${cat}')">&times;</button>

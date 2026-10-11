@@ -11,6 +11,14 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// ================= STATIC FOLDER ROUTING =================
+// Serve Admin browser application
+app.use('/admin', express.static(path.join(__dirname, 'admin-web')));
+
+// Serve Tallier PWA application
+app.use('/tallier', express.static(path.join(__dirname, 'tallier-web')));
+// ========================================================
+
 // Configure Nodemailer transporter using your .env SMTP variables
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
@@ -106,7 +114,6 @@ app.post('/api/admin/register', (req, res) => {
 
     const trimmedEmail = email ? email.toLowerCase().trim() : '';
 
-    // Check if email already exists
     if (trimmedEmail) {
         db.get(`SELECT id FROM admins WHERE email = ?`, [trimmedEmail], (err, row) => {
             if (err) return res.status(500).json({ success: false, error: err.message });

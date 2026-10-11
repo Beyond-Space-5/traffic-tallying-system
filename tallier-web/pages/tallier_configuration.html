@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tallier Configuration - Traffic Tally System</title>
     <link rel="stylesheet" href="../css/login.css">
+    <link rel="manifest" href="../manifest.json">
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('../sw.js')
+          .then(() => console.log('Service Worker Registered'));
+      }
+    </script>
     <style>
         body { display: block; padding: 20px; height: auto; background: #f1f5f9; font-family: sans-serif; }
         .dashboard-container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
