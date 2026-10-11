@@ -224,7 +224,7 @@
     let tallyLineChartInstance = null;
     let configIntervalMinutes = 15;
 
-    // Fully Synchronized Vehicle Category Color Mapping across Table, Excel, and Charts
+    // Fully Synchronized Vehicle Category Color Mapping
     const categoryColors = {
         'Car': '#1d6fa5',        // Deep Blue
         'Truck': '#d9534f',      // Crimson Red
@@ -412,7 +412,6 @@
             });
 
             const catColor = categoryColors[cat] || '#334155';
-
             return { label: cat, data: data, backgroundColor: catColor, borderColor: catColor, borderWidth: 1 };
         });
 
@@ -477,7 +476,6 @@
             });
 
             const catColor = categoryColors[cat] || '#334155';
-
             return { label: cat, data: data, borderColor: catColor, backgroundColor: catColor, fill: false, tension: 0.1, borderWidth: 2 };
         });
 

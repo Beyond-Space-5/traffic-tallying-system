@@ -104,14 +104,31 @@ app.post('/api/admin/register', (req, res) => {
         return res.status(400).json({ success: false, error: 'Username and password are required' });
     }
 
-    db.run(
-        `INSERT INTO admins (username, email, password) VALUES (?, ?, ?)`,
-        [username, email || '', password],
-        function(err) {
-            if (err) return res.status(500).json({ success: false, error: 'Username already exists or database error.' });
-            res.json({ success: true, adminId: this.lastID });
-        }
-    );
+    const trimmedEmail = email ? email.toLowerCase().trim() : '';
+
+    // Check if email already exists
+    if (trimmedEmail) {
+        db.get(`SELECT id FROM admins WHERE email = ?`, [trimmedEmail], (err, row) => {
+            if (err) return res.status(500).json({ success: false, error: err.message });
+            if (row) {
+                return res.status(400).json({ success: false, error: 'An account with this email address already exists.' });
+            }
+            executeRegistration();
+        });
+    } else {
+        executeRegistration();
+    }
+
+    function executeRegistration() {
+        db.run(
+            `INSERT INTO admins (username, email, password) VALUES (?, ?, ?)`,
+            [username, trimmedEmail, password],
+            function(err) {
+                if (err) return res.status(500).json({ success: false, error: 'Username already exists or database error.' });
+                res.json({ success: true, adminId: this.lastID });
+            }
+        );
+    }
 });
 
 app.post('/api/admin/forgot-password', (req, res) => {
@@ -340,7 +357,7 @@ app.delete('/api/tallies/:tallier_id', (req, res) => {
     });
 });
 
-// Professional Styled Excel Report Generator Endpoint (Warning-Free Direct Open)
+// Professional Styled HTML-Based Excel Export Endpoint (.xls extension) with Synchronized Colors
 app.get('/api/tallies/:tallier_id/export-excel', (req, res) => {
     const tallierId = req.params.tallier_id;
     const adminId = req.query.admin_id;
@@ -506,8 +523,7 @@ app.get('/api/tallies/:tallier_id/export-excel', (req, res) => {
                 </html>
             `;
 
-            // Using application/octet-stream bypasses Excel extension mismatch warnings while preserving formatting
-            res.setHeader('Content-Type', 'application/octet-stream');
+            res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
             res.setHeader('Content-Disposition', `attachment; filename=${tallierId}_Analytics_${new Date().toISOString().split('T')[0]}.xls`);
             res.status(200).send('\ufeff' + excelHTML);
         });

@@ -80,7 +80,7 @@
     let tallyLineChartInstance = null;
     let configIntervalMinutes = 15;
 
-    // Shared Vehicle Category Color Mapping for Table, Bar Chart, and Line Chart Synchronization
+    // Fully Synchronized Vehicle Category Color Mapping
     const categoryColors = {
         'Car': '#1d6fa5',        // Deep Blue
         'Truck': '#d9534f',      // Crimson Red
@@ -267,15 +267,14 @@
 
         const routes = [...new Set(records.map(r => r.route || 'Route'))];
         const categories = [...new Set(records.map(r => r.category || 'Vehicle'))];
-        const defaultFallbackColors = ['#1d6fa5', '#28a745', '#dc3545', '#ffc107', '#6f42c1', '#20c997'];
 
-        const datasets = categories.map((cat, index) => {
+        const datasets = categories.map((cat) => {
             const data = routes.map(route => {
                 const match = records.filter(r => (r.route || 'Route') === route && (r.category || 'Vehicle') === cat);
                 return match.reduce((sum, curr) => sum + Number(curr.count || 0), 0);
             });
 
-            const catColor = categoryColors[cat] || defaultFallbackColors[index % defaultFallbackColors.length];
+            const catColor = categoryColors[cat] || '#334155';
 
             return {
                 label: cat,
@@ -337,9 +336,8 @@
         const intervalKeys = Object.keys(intervalsMap).sort((a, b) => Number(a) - Number(b));
         const intervalLabels = intervalKeys.map(k => intervalsMap[k].label);
         const categories = [...new Set(records.map(r => r.category || 'Vehicle'))];
-        const defaultFallbackColors = ['#1d6fa5', '#28a745', '#dc3545', '#ffc107', '#6f42c1', '#20c997'];
 
-        const datasets = categories.map((cat, index) => {
+        const datasets = categories.map((cat) => {
             let runningSum = 0;
             const data = intervalKeys.map(k => {
                 const intervalCount = intervalsMap[k].counts[cat] || 0;
@@ -347,7 +345,7 @@
                 return runningSum;
             });
 
-            const catColor = categoryColors[cat] || defaultFallbackColors[index % defaultFallbackColors.length];
+            const catColor = categoryColors[cat] || '#334155';
 
             return {
                 label: cat,
