@@ -130,8 +130,9 @@
             : 'https://your-production-backend-url.com/api';
 
         window.addEventListener('DOMContentLoaded', async () => {
+            const adminId = localStorage.getItem('tts_admin_id');
             try {
-                const res = await fetch(`${API_BASE}/config`);
+                const res = await fetch(`${API_BASE}/config?admin_id=${adminId}`);
                 const data = await res.json();
                 if (data.interval) {
                     document.getElementById('analytics-interval').value = data.interval;
@@ -146,6 +147,7 @@
             const toast = document.getElementById('toast');
             toast.textContent = message;
             toast.className = `toast ${isError ? 'error' : 'success'}`;
+            toast.classList.remove('hidden');
             setTimeout(() => { toast.classList.add('hidden'); }, 4000);
         }
 
@@ -164,11 +166,12 @@
         async function handleSaveInterval(e) {
             e.preventDefault();
             const interval = parseInt(document.getElementById('analytics-interval').value);
+            const adminId = localStorage.getItem('tts_admin_id');
             try {
                 const res = await fetch(`${API_BASE}/config`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ interval })
+                    body: JSON.stringify({ admin_id: adminId, interval })
                 });
                 const result = await res.json();
                 if (result.success) showToast(`Interval set to ${interval} minutes.`);
@@ -178,8 +181,9 @@
         }
 
         async function renderTalliersTable() {
+            const adminId = localStorage.getItem('tts_admin_id');
             try {
-                const res = await fetch(`${API_BASE}/talliers`);
+                const res = await fetch(`${API_BASE}/talliers?admin_id=${adminId}`);
                 const data = await res.json();
                 const tbody = document.getElementById('talliers-table-body');
                 tbody.innerHTML = '';
@@ -225,12 +229,13 @@
             const username = document.getElementById('tallier-username').value.trim();
             const password = document.getElementById('tallier-password').value;
             const location = document.getElementById('tallier-location').value.trim();
+            const adminId = localStorage.getItem('tts_admin_id');
 
             try {
                 const res = await fetch(`${API_BASE}/talliers`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password, location })
+                    body: JSON.stringify({ admin_id: adminId, username, password, location })
                 });
                 const result = await res.json();
                 if (result.success) {
@@ -238,7 +243,7 @@
                     closeTallierModal();
                     renderTalliersTable();
                 } else {
-                    showToast('Failed to save tallier.', true);
+                    showToast(result.error || 'Failed to save tallier.', true);
                 }
             } catch (err) {
                 showToast('Network error saving tallier.', true);
@@ -246,16 +251,22 @@
         }
 
         async function toggleStatus(id) {
+            const adminId = localStorage.getItem('tts_admin_id');
             try {
-                await fetch(`${API_BASE}/talliers/${id}/toggle`, { method: 'POST' });
+                await fetch(`${API_BASE}/talliers/${id}/toggle`, { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ admin_id: adminId })
+                });
                 renderTalliersTable();
             } catch (err) { console.error(err); }
         }
 
         async function deleteTallier(id, username) {
+            const adminId = localStorage.getItem('tts_admin_id');
             if (confirm(`Delete tallier "${username}"?`)) {
                 try {
-                    await fetch(`${API_BASE}/talliers/${id}`, { method: 'DELETE' });
+                    await fetch(`${API_BASE}/talliers/${id}?admin_id=${adminId}`, { method: 'DELETE' });
                     renderTalliersTable();
                     showToast(`Tallier ${username} deleted.`);
                 } catch (err) { console.error(err); }

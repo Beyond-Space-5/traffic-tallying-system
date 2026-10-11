@@ -41,6 +41,8 @@
         }
 
         .nav-brand { display: flex; align-items: center; gap: 10px; font-size: 1.25rem; font-weight: 700; color: var(--primary-color); }
+        .nav-brand-text { display: flex; flex-direction: column; }
+        .admin-username-sub { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); }
         .nav-actions { display: flex; gap: 10px; align-items: center; }
 
         .btn {
@@ -104,7 +106,10 @@
         <header class="top-navbar">
             <div class="nav-brand">
                 <i class="fa-solid fa-chart-pie"></i>
-                <span>Admin Dashboard</span>
+                <div class="nav-brand-text">
+                    <span>Admin Dashboard</span>
+                    <span id="adminUsernameSub" class="admin-username-sub"></span>
+                </div>
             </div>
             <div class="nav-actions">
                 <a href="admin-configuration.html" class="btn btn-primary btn-sm">
@@ -133,14 +138,21 @@
             : 'https://your-production-backend-url.com/api';
 
         window.onload = function() {
+            const loggedInAdmin = localStorage.getItem('tts_admin_username');
+            const subElement = document.getElementById('adminUsernameSub');
+            if (loggedInAdmin && subElement) {
+                subElement.textContent = `User: ${loggedInAdmin}`;
+            }
+
             renderAdminDashboard();
         };
 
         async function renderAdminDashboard() {
             const gridContainer = document.getElementById('talliersGrid');
+            const adminId = localStorage.getItem('tts_admin_id');
             
             try {
-                const res = await fetch(`${API_BASE}/talliers`);
+                const res = await fetch(`${API_BASE}/talliers?admin_id=${adminId}`);
                 const data = await res.json();
                 
                 if (!data.success || !data.talliers || data.talliers.length === 0) {
@@ -164,7 +176,7 @@
 
                     let recordCount = 0;
                     try {
-                        const tallyRes = await fetch(`${API_BASE}/tallies/${encodeURIComponent(username)}`);
+                        const tallyRes = await fetch(`${API_BASE}/tallies/${encodeURIComponent(username)}?admin_id=${adminId}`);
                         const tallyData = await tallyRes.json();
                         if (tallyData.success && tallyData.records) {
                             recordCount = tallyData.records.reduce((sum, r) => sum + Number(r.count || 0), 0);

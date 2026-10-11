@@ -20,8 +20,9 @@
     <div class="header-row">
         <h2>Analytics Dashboard</h2>
         <div class="nav-btn-group">
+            <button type="button" onclick="clearAllAnalyticsData()" class="btn" style="background-color: #dc3545; color: white; border: none; cursor: pointer;">Clear All Data</button>
             <a href="tallier_tally.html" class="btn btn-secondary">Back to Tally</a>
-            <a href="tallier_configuration.html" class="btn btn-primary">Dashboard</a>
+            <a href="tallier_configuration.html" class="btn btn-primary">Configuration</a>
         </div>
     </div>
 
@@ -79,11 +80,21 @@
     let tallyLineChartInstance = null;
     let configIntervalMinutes = 15;
 
+    // Shared Vehicle Category Color Mapping for Table, Bar Chart, and Line Chart Synchronization
+    const categoryColors = {
+        'Car': '#1d6fa5',        // Deep Blue
+        'Truck': '#d9534f',      // Crimson Red
+        'Bus': '#d97706',        // Amber / Orange
+        'Motorcycle': '#16a34a', // Green
+        'Bicycle': '#7c3aed',    // Purple
+        'Pedestrian': '#db2777'  // Pink
+    };
+
     window.onload = async function() {
         document.getElementById('displayUsername').textContent = targetTallierId;
         
         try {
-            const res = await fetch(`${API_BASE}/config`);
+            const res = await fetch(`${API_BASE}/config?tallier_id=${encodeURIComponent(targetTallierId)}`);
             const data = await res.json();
             if (data && data.interval) {
                 configIntervalMinutes = Number(data.interval);
@@ -108,6 +119,34 @@
         } catch (err) {
             console.error('Error fetching analytics from server:', err);
             loadAndDisplayAnalytics([]);
+        }
+    }
+
+    async function clearAllAnalyticsData() {
+        const confirmed = window.confirm("Are you sure you want to permanently clear all recorded data for this tallier from the database? This action cannot be undone.");
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_BASE}/tallies/${encodeURIComponent(targetTallierId)}`, {
+                method: 'DELETE'
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                const tbody = document.getElementById('analyticsTableBody');
+                tbody.innerHTML = `<tr><td colspan="5" class="placeholder-text">No tally records captured yet. Start recording counts on the tally page.</td></tr>`;
+
+                updateChart([]);
+                updateLineChart([]);
+                alert("All records for this tallier have been permanently deleted from the database.");
+            } else {
+                alert(result.error || "Failed to clear data from the server.");
+            }
+        } catch (err) {
+            console.error('Network error clearing tallier data:', err);
+            alert("Network error communicating with the server.");
         }
     }
 
@@ -179,13 +218,15 @@
                     intervalTotalCount += agg.count;
                     overallTotal += agg.count;
 
+                    const catColor = categoryColors[agg.category] || '#334155';
+
                     html += `
                         <tr>
                             <td style="text-align: center; width: 40px; color: #888;">↳</td>
                             <td><strong>${agg.route}</strong></td>
-                            <td>${agg.category}</td>
+                            <td style="font-weight: bold; color: ${catColor};">${agg.category}</td>
                             <td>${intervalObj.label}</td>
-                            <td style="text-align: right; color: #1d6fa5; font-weight: bold;">${agg.count}</td>
+                            <td style="text-align: right; color: ${catColor}; font-weight: bold;">${agg.count}</td>
                         </tr>
                     `;
                 }
@@ -195,7 +236,7 @@
                 html += `
                     <tr style="background-color: #f1f5f9; font-weight: bold; border-top: 2px dashed #1d6fa5;">
                         <td colspan="4" style="text-align: right; color: #1d6fa5;">[${configIntervalMinutes}-Min Interval Summary - Cumulative Total]:</td>
-                        <td style="text-align: right; color: #1d6fa5;">${cumulativeRunningTotal}</td>
+                        <td style="text-align: right; color: #1d6fa5; font-weight: bold;">${cumulativeRunningTotal}</td>
                     </tr>
                 `;
                 html += `<tr style="height: 15px;"><td colspan="5" style="border: none; background: transparent;">&nbsp;</td></tr>`;
@@ -206,9 +247,9 @@
         }
 
         html += `
-            <tr class="overall-total-row">
-                <td colspan="4" style="text-align: right; font-weight: bold; font-size: 1.05em;">Overall Total Count:</td>
-                <td style="text-align: right; font-weight: bold; font-size: 1.05em; color: #28a745;">${overallTotal}</td>
+            <tr class="overall-total-row" style="background-color: #dcfce7;">
+                <td colspan="4" style="text-align: right; font-weight: bold; font-size: 1.05em; color: #166534;">Overall Total Count:</td>
+                <td style="text-align: right; font-weight: bold; font-size: 1.05em; color: #166534;">${overallTotal}</td>
             </tr>
         `;
 
@@ -224,36 +265,42 @@
             return;
         }
 
-        const categories = [...new Set(records.map(r => r.category || 'Vehicle'))];
         const routes = [...new Set(records.map(r => r.route || 'Route'))];
-        const colors = ['#1d6fa5', '#009688', '#8a2be2', '#e91e63', '#ff9800', '#4caf50'];
+        const categories = [...new Set(records.map(r => r.category || 'Vehicle'))];
+        const defaultFallbackColors = ['#1d6fa5', '#28a745', '#dc3545', '#ffc107', '#6f42c1', '#20c997'];
 
-        const datasets = routes.map((route, index) => {
-            const data = categories.map(cat => {
-                const match = records.filter(r => (r.category || 'Vehicle') === cat && (r.route || 'Route') === route);
+        const datasets = categories.map((cat, index) => {
+            const data = routes.map(route => {
+                const match = records.filter(r => (r.route || 'Route') === route && (r.category || 'Vehicle') === cat);
                 return match.reduce((sum, curr) => sum + Number(curr.count || 0), 0);
             });
+
+            const catColor = categoryColors[cat] || defaultFallbackColors[index % defaultFallbackColors.length];
+
             return {
-                label: route,
+                label: cat,
                 data: data,
-                backgroundColor: colors[index % colors.length],
-                borderColor: colors[index % colors.length],
+                backgroundColor: catColor,
+                borderColor: catColor,
                 borderWidth: 1
             };
         });
 
         if (tallyChartInstance) {
-            tallyChartInstance.data.labels = categories;
+            tallyChartInstance.data.labels = routes;
             tallyChartInstance.data.datasets = datasets;
             tallyChartInstance.update();
         } else {
             tallyChartInstance = new Chart(ctx, {
                 type: 'bar',
-                data: { labels: categories, datasets: datasets },
+                data: { labels: routes, datasets: datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                    scales: {
+                        y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: 'Count' } },
+                        x: { title: { display: true, text: 'Route' } }
+                    }
                 }
             });
         }
@@ -290,7 +337,7 @@
         const intervalKeys = Object.keys(intervalsMap).sort((a, b) => Number(a) - Number(b));
         const intervalLabels = intervalKeys.map(k => intervalsMap[k].label);
         const categories = [...new Set(records.map(r => r.category || 'Vehicle'))];
-        const colors = ['#1d6fa5', '#28a745', '#dc3545', '#ffc107', '#6f42c1', '#20c997'];
+        const defaultFallbackColors = ['#1d6fa5', '#28a745', '#dc3545', '#ffc107', '#6f42c1', '#20c997'];
 
         const datasets = categories.map((cat, index) => {
             let runningSum = 0;
@@ -300,11 +347,13 @@
                 return runningSum;
             });
 
+            const catColor = categoryColors[cat] || defaultFallbackColors[index % defaultFallbackColors.length];
+
             return {
                 label: cat,
                 data: data,
-                borderColor: colors[index % colors.length],
-                backgroundColor: colors[index % colors.length],
+                borderColor: catColor,
+                backgroundColor: catColor,
                 fill: false,
                 tension: 0.1,
                 borderWidth: 2

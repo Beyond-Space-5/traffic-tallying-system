@@ -10,6 +10,7 @@
             --primary-color: #2b3e50;
             --secondary-color: #1d6fa5;
             --success-color: #28a745;
+            --danger-color: #dc3545;
             --bg-color: #f8f9fa;
             --card-bg: #ffffff;
             --border-color: #e9ecef;
@@ -75,6 +76,21 @@
             text-decoration: none;
         }
         .btn-excel:hover { background-color: #218838; }
+
+        .btn-danger-custom {
+            background-color: var(--danger-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+        }
+        .btn-danger-custom:hover { background-color: #c82333; }
 
         .toolbar-row {
             background: var(--card-bg);
@@ -148,7 +164,8 @@
     <div class="header-row">
         <h2>Admin Analytics Inspection</h2>
         <div class="nav-btn-group">
-            <button onclick="downloadExcelReport()" class="btn-excel">📥 Download Excel Report</button>
+            <button type="button" onclick="clearAllData()" class="btn-danger-custom">🗑️ Clear All Data</button>
+            <button type="button" onclick="downloadExcelReport()" class="btn-excel">📥 Download Excel Report</button>
             <a href="admin-dashboard.html" class="btn btn-primary">Back to Admin Dashboard</a>
         </div>
     </div>
@@ -207,11 +224,22 @@
     let tallyLineChartInstance = null;
     let configIntervalMinutes = 15;
 
+    // Fully Synchronized Vehicle Category Color Mapping across Table, Excel, and Charts
+    const categoryColors = {
+        'Car': '#1d6fa5',        // Deep Blue
+        'Truck': '#d9534f',      // Crimson Red
+        'Bus': '#d97706',        // Amber / Orange
+        'Motorcycle': '#16a34a', // Green
+        'Bicycle': '#7c3aed',    // Purple
+        'Pedestrian': '#db2777'  // Pink
+    };
+
     window.onload = async function() {
         document.getElementById('displayUsername').textContent = targetTallierId;
         
+        const adminId = localStorage.getItem('tts_admin_id');
         try {
-            const res = await fetch(`${API_BASE}/config`);
+            const res = await fetch(API_BASE + '/config?admin_id=' + adminId);
             const data = await res.json();
             if (data && data.interval) {
                 configIntervalMinutes = Number(data.interval);
@@ -226,7 +254,8 @@
 
     async function fetchTallierAnalyticsFromServer() {
         try {
-            const response = await fetch(`${API_BASE}/tallies/${encodeURIComponent(targetTallierId)}`);
+            const adminId = localStorage.getItem('tts_admin_id') || '';
+            const response = await fetch(API_BASE + '/tallies/' + encodeURIComponent(targetTallierId) + '?admin_id=' + adminId);
             const data = await response.json();
             if (data.success && data.records) {
                 loadAndDisplayAnalytics(data.records);
@@ -239,32 +268,40 @@
         }
     }
 
-    async function downloadExcelReport() {
-        try {
-            const response = await fetch(`${API_BASE}/tallies/${encodeURIComponent(targetTallierId)}/export-excel`);
-            if (!response.ok) throw new Error('Failed to generate Excel report');
+    function downloadExcelReport() {
+        const adminId = localStorage.getItem('tts_admin_id') || '';
+        window.location.href = API_BASE + '/tallies/' + encodeURIComponent(targetTallierId) + '/export-excel?admin_id=' + adminId;
+    }
 
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            
-            const todayStr = new Date().toISOString().split('T')[0];
-            a.download = `${targetTallierId}_Analytics_${todayStr}.xlsx`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
+    async function clearAllData() {
+        const confirmed = confirm("Are you sure you want to permanently clear all recorded data for this tallier from the database? This action cannot be undone.");
+        if (!confirmed) return;
+
+        try {
+            const adminId = localStorage.getItem('tts_admin_id') || '';
+            const response = await fetch(API_BASE + '/tallies/' + encodeURIComponent(targetTallierId) + '?admin_id=' + adminId, {
+                method: 'DELETE'
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                document.getElementById('analyticsTableBody').innerHTML = '<tr><td colspan="5" class="placeholder-text">No tally records captured yet for this tallier.</td></tr>';
+                updateChart([]);
+                updateLineChart([]);
+                alert("All records for this tallier have been permanently deleted from the database.");
+            } else {
+                alert(result.error || "Failed to clear data from the server.");
+            }
         } catch (err) {
-            console.error('Excel export error:', err);
-            alert('Could not download Excel report.');
+            console.error('Network error clearing tallier data:', err);
+            alert("Network error communicating with the server.");
         }
     }
 
     function loadAndDisplayAnalytics(records) {
         const tbody = document.getElementById('analyticsTableBody');
         if (!records || records.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" class="placeholder-text">No tally records captured yet for this tallier.</td></tr>`;
+            tbody.innerHTML = '<tr><td colspan="5" class="placeholder-text">No tally records captured yet for this tallier.</td></tr>';
             updateChart([]);
             updateLineChart([]);
             return;
@@ -275,9 +312,7 @@
         let groupedByJunction = {};
         records.forEach(rec => {
             const junction = rec.junction || 'Unknown Junction';
-            if (!groupedByJunction[junction]) {
-                groupedByJunction[junction] = [];
-            }
+            if (!groupedByJunction[junction]) groupedByJunction[junction] = [];
             groupedByJunction[junction].push(rec);
         });
 
@@ -286,11 +321,7 @@
         let junctionIndex = 1;
 
         for (const [junction, jRecords] of Object.entries(groupedByJunction)) {
-            html += `
-                <tr class="section-header-row">
-                    <td colspan="5" style="background-color: #eef2f7; color: #1d6fa5; font-weight: bold;"><strong>${junctionIndex}. Junction: ${junction}</strong></td>
-                </tr>
-            `;
+            html += `<tr class="section-header-row"><td colspan="5" style="background-color: #eef2f7; color: #1d6fa5; font-weight: bold;"><strong>${junctionIndex}. Junction: ${junction}</strong></td></tr>`;
 
             let intervalMs = configIntervalMinutes * 60 * 1000;
             let sessionStartTime = jRecords.length > 0 ? new Date(jRecords[0].timestamp).getTime() : Date.now();
@@ -311,11 +342,11 @@
 
                 const route = rec.route || 'N/A';
                 const category = rec.category || 'N/A';
-                const mapKey = `${route}__${category}`;
+                const mapKey = route + '__' + category;
                 const count = Number(rec.count || 0);
 
                 if (!intervalsMap[intervalIdx].aggregates[mapKey]) {
-                    intervalsMap[intervalIdx].aggregates[mapKey] = { route, category, count: 0 };
+                    intervalsMap[intervalIdx].aggregates[mapKey] = { route: route, category: category, count: 0 };
                 }
                 intervalsMap[intervalIdx].aggregates[mapKey].count += count;
             });
@@ -331,37 +362,33 @@
                     intervalTotalCount += agg.count;
                     overallTotal += agg.count;
 
-                    html += `
-                        <tr>
-                            <td style="text-align: center; width: 40px; color: #888;">↳</td>
-                            <td><strong>${agg.route}</strong></td>
-                            <td>${agg.category}</td>
-                            <td>${intervalObj.label}</td>
-                            <td style="text-align: right; color: #1d6fa5; font-weight: bold;">${agg.count}</td>
-                        </tr>
-                    `;
+                    const catColor = categoryColors[agg.category] || '#334155';
+
+                    html += `<tr>
+                        <td style="text-align: center; width: 40px; color: #888;">↳</td>
+                        <td><strong>${agg.route}</strong></td>
+                        <td style="font-weight: bold; color: ${catColor};">${agg.category}</td>
+                        <td>${intervalObj.label}</td>
+                        <td style="text-align: right; color: ${catColor}; font-weight: bold;">${agg.count}</td>
+                    </tr>`;
                 }
 
                 cumulativeRunningTotal += intervalTotalCount;
 
-                html += `
-                    <tr style="background-color: #f1f5f9; font-weight: bold; border-top: 2px dashed #1d6fa5;">
-                        <td colspan="4" style="text-align: right; color: #1d6fa5;">[${configIntervalMinutes}-Min Interval Summary - Cumulative Total]:</td>
-                        <td style="text-align: right; color: #1d6fa5;">${cumulativeRunningTotal}</td>
-                    </tr>
-                `;
+                html += `<tr style="background-color: #f1f5f9; font-weight: bold; border-top: 2px dashed #1d6fa5;">
+                    <td colspan="4" style="text-align: right; color: #1d6fa5;">[${configIntervalMinutes}-Min Interval Summary - Cumulative Total]:</td>
+                    <td style="text-align: right; color: #1d6fa5;">${cumulativeRunningTotal}</td>
+                </tr>`;
             });
 
             html += `<tr style="height: 8px;"><td colspan="5" style="border: none; background: transparent;">&nbsp;</td></tr>`;
             junctionIndex++;
         }
 
-        html += `
-            <tr class="overall-total-row">
-                <td colspan="4" style="text-align: right; font-weight: bold; font-size: 1.05em;">Overall Total Count:</td>
-                <td style="text-align: right; font-weight: bold; font-size: 1.05em; color: #28a745;">${overallTotal}</td>
-            </tr>
-        `;
+        html += `<tr class="overall-total-row">
+            <td colspan="4" style="text-align: right; font-weight: bold; font-size: 1.05em;">Overall Total Count:</td>
+            <td style="text-align: right; font-weight: bold; font-size: 1.05em; color: #166534;">${overallTotal}</td>
+        </tr>`;
 
         tbody.innerHTML = html;
         updateChart(records);
@@ -377,35 +404,34 @@
 
         const categories = [...new Set(records.map(r => r.category || 'Vehicle'))];
         const routes = [...new Set(records.map(r => r.route || 'Route'))];
-        const colors = ['#1d6fa5', '#009688', '#8a2be2', '#e91e63', '#ff9800', '#4caf50'];
 
-        const datasets = routes.map((route, index) => {
-            const data = categories.map(cat => {
-                const match = records.filter(r => (r.category || 'Vehicle') === cat && (r.route || 'Route') === route);
+        const datasets = categories.map((cat) => {
+            const data = routes.map(route => {
+                const match = records.filter(r => (r.route || 'Route') === route && (r.category || 'Vehicle') === cat);
                 return match.reduce((sum, curr) => sum + Number(curr.count || 0), 0);
             });
-            return {
-                label: route,
-                data: data,
-                backgroundColor: colors[index % colors.length],
-                borderColor: colors[index % colors.length],
-                borderWidth: 1
-            };
+
+            const catColor = categoryColors[cat] || '#334155';
+
+            return { label: cat, data: data, backgroundColor: catColor, borderColor: catColor, borderWidth: 1 };
         });
 
         if (tallyChartInstance) {
-            tallyChartInstance.data.labels = categories;
+            tallyChartInstance.data.labels = routes;
             tallyChartInstance.data.datasets = datasets;
             tallyChartInstance.update();
         } else {
-            tallyChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: { labels: categories, datasets: datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
-                }
+            tallyChartInstance = new Chart(ctx, { 
+                type: 'bar', 
+                data: { labels: routes, datasets: datasets }, 
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    scales: { 
+                        y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: 'Count' } }, 
+                        x: { title: { display: true, text: 'Route' } } 
+                    } 
+                } 
             });
         }
     }
@@ -441,9 +467,8 @@
         const intervalKeys = Object.keys(intervalsMap).sort((a, b) => Number(a) - Number(b));
         const intervalLabels = intervalKeys.map(k => intervalsMap[k].label);
         const categories = [...new Set(records.map(r => r.category || 'Vehicle'))];
-        const colors = ['#1d6fa5', '#28a745', '#dc3545', '#ffc107', '#6f42c1', '#20c997'];
 
-        const datasets = categories.map((cat, index) => {
+        const datasets = categories.map((cat) => {
             let runningSum = 0;
             const data = intervalKeys.map(k => {
                 const intervalCount = intervalsMap[k].counts[cat] || 0;
@@ -451,15 +476,9 @@
                 return runningSum;
             });
 
-            return {
-                label: cat,
-                data: data,
-                borderColor: colors[index % colors.length],
-                backgroundColor: colors[index % colors.length],
-                fill: false,
-                tension: 0.1,
-                borderWidth: 2
-            };
+            const catColor = categoryColors[cat] || '#334155';
+
+            return { label: cat, data: data, borderColor: catColor, backgroundColor: catColor, fill: false, tension: 0.1, borderWidth: 2 };
         });
 
         if (tallyLineChartInstance) {
@@ -467,17 +486,17 @@
             tallyLineChartInstance.data.datasets = datasets;
             tallyLineChartInstance.update();
         } else {
-            tallyLineChartInstance = new Chart(ctx, {
-                type: 'line',
-                data: { labels: intervalLabels, datasets: datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: 'Cumulative Count' } },
-                        x: { title: { display: true, text: 'Time Interval' } }
-                    }
-                }
+            tallyLineChartInstance = new Chart(ctx, { 
+                type: 'line', 
+                data: { labels: intervalLabels, datasets: datasets }, 
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    scales: { 
+                        y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: 'Cumulative Count' } }, 
+                        x: { title: { display: true, text: 'Time Interval' } } 
+                    } 
+                } 
             });
         }
     }

@@ -1,34 +1,17 @@
+require('dotenv').config();
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
-const bodyParser = require('body-parser');
 const path = require('path');
-const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
-const ExcelJS = require('exceljs');
-require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
-// Serve static files
-app.use(express.static(path.join(__dirname)));
-app.use('/admin-web', express.static(path.join(__dirname, 'admin-web')));
-app.use('/tallier-web', express.static(path.join(__dirname, 'tallier-web')));
-
-// Initialize SQLite Database
-const db = new sqlite3.Database('./database.sqlite', (err) => {
-    if (err) {
-        console.error('Error opening database', err.message);
-    } else {
-        console.log('Connected to the SQLite database.');
-    }
-});
-
-// Configure Nodemailer Transporter
+// Configure Nodemailer transporter using your .env SMTP variables
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: process.env.SMTP_PORT || 587,
@@ -39,480 +22,499 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// Verify SMTP Connection safely on startup without crashing or flooding logs
-transporter.verify((error) => {
-    if (error) {
-        console.warn('⚠️ SMTP Warning: Email configuration error or invalid credentials. Password resets may fail until .env is updated:', error.message);
+// Store reset codes temporarily in memory (Map: email -> { code, expiresAt })
+const passwordResetStore = new Map();
+
+// Initialize SQLite Database
+const dbPath = path.resolve(__dirname, 'traffic_tally.db');
+const db = new sqlite3.Database(dbPath, (err) => {
+    if (err) {
+        console.error('Error opening database', err.message);
     } else {
-        console.log('✅ SMTP Mailer is ready to send messages.');
+        console.log('Connected to the SQLite database.');
+        initDatabase();
     }
 });
 
-// Create Database Tables with Multi-Admin Isolation
-db.serialize(() => {
-    db.run(`CREATE TABLE IF NOT EXISTS admins (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        reset_code TEXT,
-        reset_expires TEXT
-    )`);
+function initDatabase() {
+    db.serialize(() => {
+        db.run(`CREATE TABLE IF NOT EXISTS admins (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE,
+            email TEXT,
+            password TEXT
+        )`, () => {
+            db.run(`ALTER TABLE admins ADD COLUMN email TEXT`, (err) => {});
+        });
 
-    db.run(`CREATE TABLE IF NOT EXISTS talliers (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        admin_id INTEGER NOT NULL,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        location TEXT NOT NULL,
-        active INTEGER DEFAULT 1,
-        last_sync TEXT DEFAULT 'Never',
-        FOREIGN KEY(admin_id) REFERENCES admins(id)
-    )`);
+        db.run(`CREATE TABLE IF NOT EXISTS talliers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_id INTEGER,
+            username TEXT,
+            password TEXT,
+            location TEXT,
+            active INTEGER DEFAULT 1,
+            last_sync TEXT DEFAULT 'Never',
+            FOREIGN KEY(admin_id) REFERENCES admins(id)
+        )`);
 
-    db.run(`CREATE TABLE IF NOT EXISTS tally_records (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        admin_id INTEGER NOT NULL,
-        tallier_id TEXT NOT NULL,
-        junction TEXT NOT NULL,
-        route TEXT NOT NULL,
-        category TEXT NOT NULL,
-        count INTEGER NOT NULL,
-        timestamp TEXT NOT NULL,
-        FOREIGN KEY(admin_id) REFERENCES admins(id)
-    )`);
+        db.run(`CREATE TABLE IF NOT EXISTS config (
+            admin_id INTEGER PRIMARY KEY,
+            interval INTEGER DEFAULT 15,
+            FOREIGN KEY(admin_id) REFERENCES admins(id)
+        )`);
 
-    db.run(`CREATE TABLE IF NOT EXISTS system_config (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        admin_id INTEGER NOT NULL,
-        key TEXT NOT NULL,
-        value TEXT NOT NULL,
-        UNIQUE(admin_id, key),
-        FOREIGN KEY(admin_id) REFERENCES admins(id)
-    )`);
-});
+        db.run(`CREATE TABLE IF NOT EXISTS tally_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_id INTEGER,
+            tallier_id TEXT,
+            junction TEXT,
+            route TEXT,
+            category TEXT,
+            count INTEGER,
+            timestamp TEXT,
+            FOREIGN KEY(admin_id) REFERENCES admins(id)
+        )`);
+    });
+}
 
-// --- ADMIN AUTHENTICATION APIs ---
+// ================= ADMIN AUTHENTICATION & PASSWORD RESET =================
 
-app.post('/api/admin/register', async (req, res) => {
-    const { username, email, password } = req.body;
-    if (!username || !email || !password) {
-        return res.status(400).json({ success: false, error: 'All fields are required' });
-    }
-
-    try {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        db.run(
-            `INSERT INTO admins (username, email, password) VALUES (?, ?, ?)`,
-            [username, email, hashedPassword],
-            function (err) {
-                if (err) {
-                    return res.status(400).json({ success: false, error: 'Username or email already exists' });
-                }
-                const newAdminId = this.lastID;
-                db.run(`INSERT INTO system_config (admin_id, key, value) VALUES (?, 'interval', '15')`, [newAdminId]);
-                res.json({ success: true, message: 'Admin account created successfully' });
-            }
-        );
-    } catch (err) {
-        res.status(500).json({ success: false, error: 'Error processing registration' });
-    }
-});
-
-app.post('/api/admin/login', async (req, res) => {
+app.post('/api/admin/login', (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) {
         return res.status(400).json({ success: false, error: 'Username and password are required' });
     }
 
-    db.get(`SELECT * FROM admins WHERE username = ?`, [username], async (err, admin) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        if (!admin) {
-            return res.status(401).json({ success: false, error: 'Invalid username or password' });
+    db.get(
+        `SELECT * FROM admins WHERE username = ? AND password = ?`,
+        [username, password],
+        (err, row) => {
+            if (err) return res.status(500).json({ success: false, error: err.message });
+            if (!row) return res.status(401).json({ success: false, error: 'Invalid admin credentials.' });
+            
+            res.json({ success: true, adminId: row.id, username: row.username });
         }
-
-        try {
-            const isMatch = await bcrypt.compare(password, admin.password);
-            if (!isMatch) {
-                return res.status(401).json({ success: false, error: 'Invalid username or password' });
-            }
-            res.json({ success: true, adminId: admin.id, username: admin.username, email: admin.email });
-        } catch (compareErr) {
-            res.status(500).json({ success: false, error: 'Authentication error' });
-        }
-    });
+    );
 });
 
-// --- ADMIN PASSWORD RECOVERY MULTI-STEP APIs ---
+app.post('/api/admin/register', (req, res) => {
+    const { username, email, password } = req.body;
+    if (!username || !password) {
+        return res.status(400).json({ success: false, error: 'Username and password are required' });
+    }
+
+    db.run(
+        `INSERT INTO admins (username, email, password) VALUES (?, ?, ?)`,
+        [username, email || '', password],
+        function(err) {
+            if (err) return res.status(500).json({ success: false, error: 'Username already exists or database error.' });
+            res.json({ success: true, adminId: this.lastID });
+        }
+    );
+});
 
 app.post('/api/admin/forgot-password', (req, res) => {
-    const { identifier } = req.body;
+    const identifier = req.body.identifier || req.body.email || req.body.username;
     if (!identifier) {
         return res.status(400).json({ success: false, error: 'Username or email is required' });
     }
 
-    db.get(`SELECT * FROM admins WHERE username = ? OR email = ?`, [identifier, identifier], (err, admin) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        if (!admin) {
-            return res.json({ success: true, message: 'If the account exists, a reset code has been sent.' });
-        }
+    db.get(
+        `SELECT * FROM admins WHERE username = ? OR email = ?`,
+        [identifier, identifier],
+        async (err, row) => {
+            if (err) return res.status(500).json({ success: false, error: err.message });
+            if (!row || !row.email) {
+                return res.json({ success: true, message: 'If the account exists, a reset code has been sent.' });
+            }
 
-        const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-        const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+            const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+            passwordResetStore.set(row.email.toLowerCase(), {
+                code: resetCode,
+                expiresAt: Date.now() + 10 * 60 * 1000
+            });
 
-        db.run(`UPDATE admins SET reset_code = ?, reset_expires = ? WHERE id = ?`, [resetCode, expiresAt, admin.id], async (updateErr) => {
-            if (updateErr) return res.status(500).json({ success: false, error: updateErr.message });
+            const mailOptions = {
+                from: process.env.EMAIL_FROM || process.env.SMTP_USER,
+                to: row.email,
+                subject: 'Traffic Tallying System - Password Reset Code',
+                text: `Hello ${row.username},\n\nYour 6-digit password reset code is: ${resetCode}\n\nThis code will expire in 10 minutes.`
+            };
 
             try {
-                await transporter.sendMail({
-                    from: process.env.EMAIL_FROM || process.env.SMTP_USER,
-                    to: admin.email,
-                    subject: 'Traffic Tallying System - Password Reset Code',
-                    html: `
-                        <h3>Password Reset Request</h3>
-                        <p>Hello <b>${admin.username}</b>,</p>
-                        <p>Your 6-digit password reset code is:</p>
-                        <h2 style="color: #1d6fa5; letter-spacing: 3px;">${resetCode}</h2>
-                        <p>This code expires in 15 minutes.</p>
-                    `
-                });
-                res.json({ success: true, message: 'Reset code sent to registered email.', identifier: admin.username });
+                await transporter.sendMail(mailOptions);
+                res.json({ success: true, message: 'Reset code sent successfully.' });
             } catch (mailErr) {
-                console.warn('⚠️ Non-blocking email dispatch failure:', mailErr.message);
-                res.status(500).json({ success: false, error: 'Failed to send recovery email. Check SMTP configuration in .env.' });
+                res.status(500).json({ success: false, error: 'Failed to send email.' });
             }
-        });
-    });
+        }
+    );
 });
 
 app.post('/api/admin/verify-code', (req, res) => {
-    const { identifier, code } = req.body;
-    if (!identifier || !code) {
-        return res.status(400).json({ success: false, error: 'Identifier and reset code are required' });
-    }
+    const identifier = req.body.identifier || req.body.email || req.body.username;
+    const code = req.body.code;
 
-    db.get(`SELECT * FROM admins WHERE (username = ? OR email = ?) AND reset_code = ?`, [identifier, identifier, code], (err, admin) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        if (!admin) {
-            return res.status(400).json({ success: false, error: 'Invalid reset code' });
-        }
+    db.get(
+        `SELECT email FROM admins WHERE username = ? OR email = ?`,
+        [identifier, identifier],
+        (err, row) => {
+            if (err || !row) return res.status(400).json({ success: false, error: 'Invalid account or code.' });
 
-        if (new Date() > new Date(admin.reset_expires)) {
-            return res.status(400).json({ success: false, error: 'Reset code has expired. Please request a new one.' });
-        }
-
-        res.json({ success: true, message: 'Code verified successfully.' });
-    });
-});
-
-app.post('/api/admin/reset-password-confirmed', async (req, res) => {
-    const { identifier, code, newPassword } = req.body;
-    if (!identifier || !code || !newPassword) {
-        return res.status(400).json({ success: false, error: 'All fields are required' });
-    }
-
-    db.get(`SELECT * FROM admins WHERE (username = ? OR email = ?) AND reset_code = ?`, [identifier, identifier, code], async (err, admin) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        if (!admin) {
-            return res.status(400).json({ success: false, error: 'Invalid verification session or code' });
-        }
-
-        if (new Date() > new Date(admin.reset_expires)) {
-            return res.status(400).json({ success: false, error: 'Reset code has expired.' });
-        }
-
-        try {
-            const hashedPassword = await bcrypt.hash(newPassword, 10);
-            db.run(`UPDATE admins SET password = ?, reset_code = NULL, reset_expires = NULL WHERE id = ?`, [hashedPassword, admin.id], (updateErr) => {
-                if (updateErr) return res.status(500).json({ success: false, error: updateErr.message });
-                res.json({ success: true, message: 'Password successfully updated.' });
-            });
-        } catch (hashErr) {
-            res.status(500).json({ success: false, error: 'Error hashing password' });
-        }
-    });
-});
-
-// --- ISOLATED TALLIER MANAGEMENT APIs ---
-
-app.post('/api/talliers', (req, res) => {
-    const { admin_id, username, password, location } = req.body;
-    if (!admin_id || !username || !password || !location) {
-        return res.status(400).json({ success: false, error: 'Missing required fields' });
-    }
-
-    db.run(
-        `INSERT INTO talliers (admin_id, username, password, location, active, last_sync) 
-         VALUES (?, ?, ?, ?, 1, 'Never') 
-         ON CONFLICT(username) DO UPDATE SET password = excluded.password, location = excluded.location, admin_id = excluded.admin_id`,
-        [admin_id, username, password, location],
-        function (err) {
-            if (err) {
-                return res.status(500).json({ success: false, error: err.message });
+            const record = passwordResetStore.get(row.email.toLowerCase());
+            if (!record || Date.now() > record.expiresAt || record.code !== code.toString().trim()) {
+                return res.status(400).json({ success: false, error: 'Invalid or expired verification code.' });
             }
-            res.json({ success: true, id: this.lastID || username });
+
+            res.json({ success: true, message: 'Code verified successfully.' });
+        }
+    );
+});
+
+app.post('/api/admin/reset-password-confirmed', (req, res) => {
+    const identifier = req.body.identifier || req.body.email || req.body.username;
+    const code = req.body.code;
+    const newPassword = req.body.newPassword || req.body.password;
+
+    db.get(
+        `SELECT email FROM admins WHERE username = ? OR email = ?`,
+        [identifier, identifier],
+        (err, row) => {
+            if (err || !row) return res.status(400).json({ success: false, error: 'Account not found.' });
+
+            const record = passwordResetStore.get(row.email.toLowerCase());
+            if (!record || record.code !== code.toString().trim() || Date.now() > record.expiresAt) {
+                return res.status(400).json({ success: false, error: 'Invalid or expired reset session.' });
+            }
+
+            db.run(
+                `UPDATE admins SET password = ? WHERE email = ?`,
+                [newPassword, row.email],
+                function(err) {
+                    if (err) return res.status(500).json({ success: false, error: err.message });
+                    passwordResetStore.delete(row.email.toLowerCase());
+                    res.json({ success: true, message: 'Password updated successfully!' });
+                }
+            );
+        }
+    );
+});
+
+// ================= CONFIGURATION & TALLIERS =================
+
+app.get('/api/config', (req, res) => {
+    const adminId = req.query.admin_id;
+    const tallierId = req.query.tallier_id;
+
+    if (adminId) {
+        db.get(`SELECT interval FROM config WHERE admin_id = ?`, [adminId], (err, row) => {
+            res.json({ success: true, interval: row ? row.interval : 15 });
+        });
+    } else if (tallierId) {
+        db.get(
+            `SELECT config.interval FROM config JOIN talliers ON config.admin_id = talliers.admin_id WHERE talliers.username = ?`,
+            [tallierId],
+            (err, row) => {
+                res.json({ success: true, interval: row ? row.interval : 15 });
+            }
+        );
+    } else {
+        db.get(`SELECT interval FROM config LIMIT 1`, [], (err, row) => {
+            res.json({ success: true, interval: row ? row.interval : 15 });
+        });
+    }
+});
+
+app.post('/api/config', (req, res) => {
+    const { admin_id, interval } = req.body;
+    db.run(
+        `INSERT INTO config (admin_id, interval) VALUES (?, ?) ON CONFLICT(admin_id) DO UPDATE SET interval = ?`,
+        [admin_id, interval, interval],
+        function(err) {
+            if (err) return res.status(500).json({ success: false, error: err.message });
+            res.json({ success: true, interval });
         }
     );
 });
 
 app.get('/api/talliers', (req, res) => {
     const adminId = req.query.admin_id;
-    if (!adminId) {
-        return res.status(400).json({ success: false, error: 'Admin ID required' });
-    }
-
-    db.all(`SELECT * FROM talliers WHERE admin_id = ?`, [adminId], (err, talliers) => {
-        if (err) {
-            return res.status(500).json({ success: false, error: err.message });
-        }
-        res.json({ success: true, talliers });
+    db.all(`SELECT * FROM talliers WHERE admin_id = ?`, [adminId], (err, rows) => {
+        res.json({ success: true, talliers: rows });
     });
 });
 
-app.post('/api/tallier/login', (req, res) => {
-    const { username, password } = req.body;
-    db.get(`SELECT * FROM talliers WHERE username = ? AND password = ?`, [username, password], (err, row) => {
-        if (err) {
-            return res.status(500).json({ success: false, error: err.message });
+app.post('/api/talliers', (req, res) => {
+    const { admin_id, username, password, location } = req.body;
+    db.run(
+        `INSERT INTO talliers (admin_id, username, password, location, active) VALUES (?, ?, ?, ?, 1)`,
+        [admin_id, username, password, location],
+        function(err) {
+            if (err) return res.status(500).json({ success: false, error: err.message });
+            res.json({ success: true, id: this.lastID });
         }
-        if (!row) {
-            return res.status(401).json({ success: false, error: 'Invalid username or password' });
-        }
-        if (row.active === 0) {
-            return res.status(403).json({ success: false, error: 'Account is deactivated by admin' });
-        }
-        res.json({ success: true, username: row.username, location: row.location, admin_id: row.admin_id });
-    });
+    );
 });
 
 app.post('/api/talliers/:id/toggle', (req, res) => {
-    const tallierId = req.params.id;
-    const { admin_id } = req.body;
-
-    db.get(`SELECT active, admin_id FROM talliers WHERE id = ?`, [tallierId], (err, row) => {
+    db.get(`SELECT active FROM talliers WHERE id = ?`, [req.params.id], (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, error: 'Tallier not found' });
-        if (admin_id && Number(row.admin_id) !== Number(admin_id)) {
-            return res.status(403).json({ success: false, error: 'Unauthorized access to tallier' });
-        }
-
         const newStatus = row.active ? 0 : 1;
-        db.run(`UPDATE talliers SET active = ? WHERE id = ?`, [newStatus, tallierId], (err) => {
-            if (err) return res.status(500).json({ success: false, error: err.message });
+        db.run(`UPDATE talliers SET active = ? WHERE id = ?`, [newStatus, req.params.id], () => {
             res.json({ success: true, active: newStatus });
         });
     });
 });
 
 app.delete('/api/talliers/:id', (req, res) => {
-    const tallierId = req.params.id;
-    const adminId = req.query.admin_id;
-
-    db.get(`SELECT admin_id FROM talliers WHERE id = ?`, [tallierId], (err, row) => {
-        if (err || !row) return res.status(404).json({ success: false, error: 'Tallier not found' });
-        if (adminId && Number(row.admin_id) !== Number(adminId)) {
-            return res.status(403).json({ success: false, error: 'Unauthorized deletion' });
-        }
-
-        db.run(`DELETE FROM talliers WHERE id = ?`, [tallierId], (err) => {
-            if (err) return res.status(500).json({ success: false, error: err.message });
-            res.json({ success: true });
-        });
+    db.run(`DELETE FROM talliers WHERE id = ?`, [req.params.id], function(err) {
+        res.json({ success: true, deleted: this.changes });
     });
 });
 
-// --- ISOLATED TALLY SUBMISSION & ANALYTICS APIs ---
-
-app.post('/api/tallies/submit', (req, res) => {
-    const { tallier_id, records } = req.body;
-    if (!tallier_id || !records || !Array.isArray(records)) {
-        return res.status(400).json({ success: false, error: 'Invalid payload' });
-    }
-
-    db.get(`SELECT admin_id FROM talliers WHERE username = ?`, [tallier_id], (err, tallierRow) => {
-        if (err || !tallierRow) {
-            return res.status(404).json({ success: false, error: 'Tallier not registered to any admin' });
+app.post('/api/tallier/login', (req, res) => {
+    const { username, password } = req.body;
+    db.get(
+        `SELECT * FROM talliers WHERE username = ? AND password = ? AND active = 1`,
+        [username, password],
+        (err, row) => {
+            if (err || !row) return res.status(401).json({ success: false, error: 'Invalid credentials or account inactive.' });
+            res.json({ success: true, username: row.username, location: row.location });
         }
-        const adminId = tallierRow.admin_id;
-
-        const stmt = db.prepare(`INSERT INTO tally_records (admin_id, tallier_id, junction, route, category, count, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)`);
-        
-        db.serialize(() => {
-            db.run('BEGIN TRANSACTION');
-            records.forEach(r => {
-                stmt.run(adminId, tallier_id, r.junction || r.location, r.route, r.category || r.vehicle, r.count, r.timestamp || new Date().toISOString());
-            });
-            stmt.finalize();
-
-            const nowFormatted = new Date().toLocaleTimeString();
-            db.run(`UPDATE talliers SET last_sync = ? WHERE username = ?`, [nowFormatted, tallier_id]);
-
-            db.run('COMMIT', (err) => {
-                if (err) {
-                    return res.status(500).json({ success: false, error: err.message });
-                }
-                res.json({ success: true, message: 'Records successfully stored.' });
-            });
-        });
-    });
+    );
 });
+
+// ================= TALLIES & EXCEL EXPORT ENDPOINT =================
 
 app.get('/api/tallies/:tallier_id', (req, res) => {
     const tallierId = req.params.tallier_id;
     const adminId = req.query.admin_id;
 
-    db.get(`SELECT admin_id FROM talliers WHERE username = ?`, [tallierId], (err, tallier) => {
-        if (err || !tallier) return res.status(404).json({ success: false, error: 'Tallier not found' });
-        if (adminId && Number(tallier.admin_id) !== Number(adminId)) {
-            return res.status(403).json({ success: false, error: 'Unauthorized access to analytics' });
-        }
-
-        db.all(`SELECT * FROM tally_records WHERE tallier_id = ? ORDER BY id DESC`, [tallierId], (err, rows) => {
-            if (err) {
-                return res.status(500).json({ success: false, error: err.message });
-            }
-            res.json({ success: true, records: rows });
+    if (!adminId) {
+        db.all(`SELECT * FROM tally_records WHERE tallier_id = ?`, [tallierId], (err, rows) => {
+            return res.json({ success: true, records: rows });
         });
-    });
+        return;
+    }
+
+    db.all(
+        `SELECT * FROM tally_records WHERE tallier_id = ? AND admin_id = ?`,
+        [tallierId, adminId],
+        (err, rows) => {
+            res.json({ success: true, records: rows });
+        }
+    );
 });
 
-// --- EXCEL EXPORT ENGINE ---
-app.get('/api/tallies/:tallier_id/export-excel', (req, res) => {
-    const tallierId = req.params.tallier_id;
-    const adminId = req.query.admin_id;
+app.post('/api/tallies/submit', (req, res) => {
+    const { tallier_id, records } = req.body;
+    db.get(`SELECT admin_id FROM talliers WHERE username = ?`, [tallier_id], (err, tallierRow) => {
+        if (err || !tallierRow) return res.status(404).json({ success: false, error: 'Tallier not found' });
 
-    db.get(`SELECT admin_id FROM talliers WHERE username = ?`, [tallierId], (err, tallier) => {
-        if (err || !tallier) return res.status(404).send('Tallier not found');
-        if (adminId && Number(tallier.admin_id) !== Number(adminId)) {
-            return res.status(403).send('Unauthorized export');
-        }
+        const adminId = tallierRow.admin_id;
+        const stmt = db.prepare(`INSERT INTO tally_records (admin_id, tallier_id, junction, route, category, count, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)`);
 
-        db.get(`SELECT value FROM system_config WHERE admin_id = ? AND key = 'interval'`, [tallier.admin_id], (err, configRow) => {
-            const configIntervalMinutes = configRow ? Number(configRow.value) : 15;
-
-            db.all(`SELECT * FROM tally_records WHERE tallier_id = ? ORDER BY timestamp ASC`, [tallierId], async (err, rows) => {
-                if (err) return res.status(500).send('Database error');
-
-                const workbook = new ExcelJS.Workbook();
-                const worksheet = workbook.addWorksheet('Traffic Analytics Summary', { views: [{ showGridLines: true }] });
-
-                worksheet.mergeCells('A1:E1');
-                const titleCell = worksheet.getCell('A1');
-                titleCell.value = `TRAFFIC TALLY ANALYTICS REPORT - TALLIER: ${tallierId.toUpperCase()}`;
-                titleCell.font = { size: 14, bold: true, color: { argb: 'FFFFFF' } };
-                titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1D6FA5' } };
-                titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
-                worksheet.getRow(1).height = 40;
-
-                worksheet.addRow([]);
-
-                const headerRow = worksheet.addRow(['Junction', 'Route', 'Vehicle Category', 'Time Interval', 'Aggregated Count']);
-                headerRow.font = { bold: true, color: { argb: 'FFFFFF' } };
-                headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2B3E50' } };
-                headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
-
-                let groupedByJunction = {};
-                rows.forEach(r => {
-                    const junction = r.junction || 'Unknown Junction';
-                    if (!groupedByJunction[junction]) groupedByJunction[junction] = [];
-                    groupedByJunction[junction].push(r);
-                });
-
-                let overallTotal = 0;
-                let junctionIndex = 1;
-
-                for (const [junction, jRecords] of Object.entries(groupedByJunction)) {
-                    const jHeaderRow = worksheet.addRow([`${junctionIndex}. Junction: ${junction}`, '', '', '', '']);
-                    worksheet.mergeCells(`A${jHeaderRow.number}:E${jHeaderRow.number}`);
-                    jHeaderRow.font = { bold: true, color: { argb: '1D6FA5' } };
-                    jHeaderRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EEF2F7' } };
-
-                    let intervalMs = configIntervalMinutes * 60 * 1000;
-                    let sessionStartTime = jRecords.length > 0 ? new Date(jRecords[0].timestamp).getTime() : Date.now();
-                    let intervalsMap = {};
-
-                    jRecords.forEach(rec => {
-                        const recTime = rec.timestamp ? new Date(rec.timestamp).getTime() : Date.now();
-                        const intervalIdx = Math.floor((recTime - sessionStartTime) / intervalMs);
-                        
-                        if (!intervalsMap[intervalIdx]) {
-                            const intStart = new Date(sessionStartTime + (intervalIdx * intervalMs));
-                            const intEnd = new Date(sessionStartTime + ((intervalIdx + 1) * intervalMs));
-                            intervalsMap[intervalIdx] = {
-                                label: `${intStart.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${intEnd.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`,
-                                aggregates: {}
-                            };
-                        }
-
-                        const route = rec.route || 'N/A';
-                        const category = rec.category || 'N/A';
-                        const mapKey = `${route}__${category}`;
-                        const count = Number(rec.count || 0);
-
-                        if (!intervalsMap[intervalIdx].aggregates[mapKey]) {
-                            intervalsMap[intervalIdx].aggregates[mapKey] = { route, category, count: 0 };
-                        }
-                        intervalsMap[intervalIdx].aggregates[mapKey].count += count;
-                    });
-
-                    let cumulativeRunningTotal = 0;
-                    let intervalKeys = Object.keys(intervalsMap).sort((a, b) => Number(a) - Number(b));
-
-                    intervalKeys.forEach((intKey) => {
-                        const intervalObj = intervalsMap[intKey];
-                        let intervalTotalCount = 0;
-
-                        for (const [mapKey, agg] of Object.entries(intervalObj.aggregates)) {
-                            intervalTotalCount += agg.count;
-                            overallTotal += agg.count;
-
-                            worksheet.addRow([junction, agg.route, agg.category, intervalObj.label, agg.count]);
-                        }
-
-                        cumulativeRunningTotal += intervalTotalCount;
-                        const summaryRow = worksheet.addRow([`[${configIntervalMinutes}-Min Interval Summary - Cumulative Total]:`, '', '', '', cumulativeRunningTotal]);
-                        worksheet.mergeCells(`A${summaryRow.number}:D${summaryRow.number}`);
-                        summaryRow.font = { bold: true, color: { argb: '1D6FA5' } };
-                        summaryRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F8F9FA' } };
-                    });
-                    junctionIndex++;
-                }
-
-                const overallRow = worksheet.addRow(['Overall Total Count', '', '', '', overallTotal]);
-                worksheet.mergeCells(`A${overallRow.number}:D${overallRow.number}`);
-                overallRow.font = { bold: true, size: 12, color: { argb: 'FFFFFF' } };
-                overallRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '28A745' } };
-
-                res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-                res.setHeader('Content-Disposition', `attachment; filename="${tallierId}_Analytics.xlsx"`);
-
-                await workbook.xlsx.write(res);
-                res.end();
+        db.serialize(() => {
+            records.forEach(r => {
+                stmt.run(adminId, tallier_id, r.junction, r.route, r.category, r.count, r.timestamp || new Date().toISOString());
+            });
+            stmt.finalize(() => {
+                db.run(`UPDATE talliers SET last_sync = ? WHERE username = ?`, [new Date().toLocaleString(), tallier_id]);
+                res.json({ success: true, message: 'Records successfully synced.' });
             });
         });
     });
 });
 
-// --- ISOLATED SYSTEM CONFIGURATION APIs ---
-app.get('/api/config', (req, res) => {
+app.delete('/api/tallies/:tallier_id', (req, res) => {
+    const tallierId = req.params.tallier_id;
     const adminId = req.query.admin_id;
-    if (!adminId) return res.status(400).json({ success: false, error: 'Admin ID required' });
 
-    db.get(`SELECT value FROM system_config WHERE admin_id = ? AND key = 'interval'`, [adminId], (err, row) => {
+    const query = adminId ? `DELETE FROM tally_records WHERE tallier_id = ? AND admin_id = ?` : `DELETE FROM tally_records WHERE tallier_id = ?`;
+    const params = adminId ? [tallierId, adminId] : [tallierId];
+
+    db.run(query, params, function(err) {
         if (err) return res.status(500).json({ success: false, error: err.message });
-        res.json({ success: true, interval: row ? Number(row.value) : 15 });
+        res.json({ success: true, deletedCount: this.changes });
     });
 });
 
-app.post('/api/config', (req, res) => {
-    const { admin_id, interval } = req.body;
-    if (!admin_id) return res.status(400).json({ success: false, error: 'Admin ID required' });
+// Professional Styled Excel Report Generator Endpoint (Warning-Free Direct Open)
+app.get('/api/tallies/:tallier_id/export-excel', (req, res) => {
+    const tallierId = req.params.tallier_id;
+    const adminId = req.query.admin_id;
 
-    db.run(`INSERT OR REPLACE INTO system_config (admin_id, key, value) VALUES (?, 'interval', ?)`, [admin_id, String(interval)], (err) => {
+    const query = adminId 
+        ? `SELECT * FROM tally_records WHERE tallier_id = ? AND admin_id = ? ORDER BY timestamp ASC`
+        : `SELECT * FROM tally_records WHERE tallier_id = ? ORDER BY timestamp ASC`;
+    const params = adminId ? [tallierId, adminId] : [tallierId];
+
+    db.all(query, params, (err, records) => {
         if (err) return res.status(500).json({ success: false, error: err.message });
-        res.json({ success: true, interval });
+
+        const configQuery = adminId ? `SELECT interval FROM config WHERE admin_id = ?` : `SELECT interval FROM config LIMIT 1`;
+        const configParams = adminId ? [adminId] : [];
+
+        db.get(configQuery, configParams, (configErr, configRow) => {
+            const configIntervalMinutes = configRow && configRow.interval ? Number(configRow.interval) : 15;
+
+            let groupedByJunction = {};
+            (records || []).forEach(rec => {
+                const junction = rec.junction || 'Unknown Junction';
+                if (!groupedByJunction[junction]) groupedByJunction[junction] = [];
+                groupedByJunction[junction].push(rec);
+            });
+
+            let tableRowsHTML = '';
+            let overallTotal = 0;
+            let junctionIndex = 1;
+
+            const categoryColors = {
+                'Car': '#1d6fa5',
+                'Truck': '#d9534f',
+                'Bus': '#d97706',
+                'Motorcycle': '#16a34a',
+                'Bicycle': '#7c3aed',
+                'Pedestrian': '#db2777'
+            };
+
+            for (const [junction, jRecords] of Object.entries(groupedByJunction)) {
+                tableRowsHTML += `
+                    <tr style="background-color: #eef2f7; color: #1d6fa5; font-weight: bold; font-size: 11pt;">
+                        <td colspan="5" style="border: 1px solid #cbd5e1; padding: 10px 12px; mso-number-format:'\\@';"><strong>${junctionIndex}. Junction: ${junction}</strong></td>
+                    </tr>
+                `;
+
+                let intervalMs = configIntervalMinutes * 60 * 1000;
+                let sessionStartTime = jRecords.length > 0 ? new Date(jRecords[0].timestamp).getTime() : Date.now();
+                let intervalsMap = {};
+
+                jRecords.forEach(rec => {
+                    const recTime = rec.timestamp ? new Date(rec.timestamp).getTime() : Date.now();
+                    const intervalIdx = Math.floor((recTime - sessionStartTime) / intervalMs);
+                    
+                    if (!intervalsMap[intervalIdx]) {
+                        const intStart = new Date(sessionStartTime + (intervalIdx * intervalMs));
+                        const intEnd = new Date(sessionStartTime + ((intervalIdx + 1) * intervalMs));
+                        intervalsMap[intervalIdx] = {
+                            label: `${intStart.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${intEnd.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`,
+                            aggregates: {}
+                        };
+                    }
+
+                    const route = rec.route || 'N/A';
+                    const category = rec.category || 'N/A';
+                    const mapKey = `${route}__${category}`;
+                    const count = Number(rec.count || 0);
+
+                    if (!intervalsMap[intervalIdx].aggregates[mapKey]) {
+                        intervalsMap[intervalIdx].aggregates[mapKey] = { route, category, count: 0 };
+                    }
+                    intervalsMap[intervalIdx].aggregates[mapKey].count += count;
+                });
+
+                let cumulativeRunningTotal = 0;
+                let intervalKeys = Object.keys(intervalsMap).sort((a, b) => Number(a) - Number(b));
+
+                intervalKeys.forEach((intKey) => {
+                    const intervalObj = intervalsMap[intKey];
+                    let intervalTotalCount = 0;
+
+                    for (const [mapKey, agg] of Object.entries(intervalObj.aggregates)) {
+                        intervalTotalCount += agg.count;
+                        overallTotal += agg.count;
+
+                        const catColor = categoryColors[agg.category] || '#334155';
+
+                        tableRowsHTML += `
+                            <tr>
+                                <td style="text-align: center; width: 40px; color: #94a3b8; border: 1px solid #e2e8f0; padding: 8px 12px; mso-number-format:'\\@';">↳</td>
+                                <td style="border: 1px solid #e2e8f0; padding: 8px 12px; color: #0f172a; mso-number-format:'\\@';"><strong>${agg.route}</strong></td>
+                                <td style="border: 1px solid #e2e8f0; padding: 8px 12px; font-weight: bold; color: ${catColor}; mso-number-format:'\\@';">${agg.category}</td>
+                                <td style="border: 1px solid #e2e8f0; padding: 8px 12px; color: #475569; mso-number-format:'\\@';">${intervalObj.label}</td>
+                                <td style="text-align: right; color: ${catColor}; font-weight: bold; border: 1px solid #e2e8f0; padding: 8px 12px; mso-number-format:'0';">${agg.count}</td>
+                            </tr>
+                        `;
+                    }
+
+                    cumulativeRunningTotal += intervalTotalCount;
+
+                    tableRowsHTML += `
+                        <tr style="background-color: #f1f5f9; font-weight: bold; border-top: 1.5px dashed #1d6fa5;">
+                            <td colspan="4" style="text-align: right; color: #1d6fa5; border: 1px solid #e2e8f0; padding: 8px 12px; mso-number-format:'\\@';">[${configIntervalMinutes}-Min Interval Summary - Cumulative Total]:</td>
+                            <td style="text-align: right; color: #1d6fa5; border: 1px solid #e2e8f0; padding: 8px 12px; mso-number-format:'0';">${cumulativeRunningTotal}</td>
+                        </tr>
+                    `;
+                });
+                junctionIndex++;
+            }
+
+            tableRowsHTML += `
+                <tr style="background-color: #dcfce7; font-weight: bold; font-size: 11pt; color: #166534;">
+                    <td colspan="4" style="text-align: right; border: 1px solid #bbf7d0; padding: 12px; mso-number-format:'\\@';">Overall Total Count:</td>
+                    <td style="text-align: right; border: 1px solid #bbf7d0; padding: 12px; mso-number-format:'0';">${overallTotal}</td>
+                </tr>
+            `;
+
+            const excelHTML = `
+                <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+                <head>
+                    <meta charset="UTF-8">
+                    <!--[if gte mso 9]>
+                    <xml>
+                        <x:ExcelWorkbook>
+                            <x:ExcelWorksheets>
+                                <x:ExcelWorksheet>
+                                    <x:Name>Traffic Analytics</x:Name>
+                                    <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+                                </x:ExcelWorksheet>
+                            </x:ExcelWorksheets>
+                        </x:ExcelWorkbook>
+                    </xml>
+                    <![endif]-->
+                    <style>
+                        body { font-family: Arial, sans-serif; color: #334155; }
+                        table { border-collapse: collapse; width: 100%; }
+                        th { background-color: #2b3e50; color: #ffffff; padding: 12px; border: 1px solid #1e293b; text-align: left; font-weight: bold; }
+                        td { padding: 10px 12px; border: 1px solid #e2e8f0; }
+                    </style>
+                </head>
+                <body>
+                    <h2 style="color: #2b3e50; margin-bottom: 5px;">Traffic Tally Analytics Report</h2>
+                    <p style="color: #64748b; margin-top: 0; font-size: 10pt;">
+                        <strong>Tallier:</strong> ${tallierId} &nbsp;|&nbsp; 
+                        <strong>Generated on:</strong> ${new Date().toLocaleString()} &nbsp;|&nbsp; 
+                        <strong>Interval:</strong> ${configIntervalMinutes} mins
+                    </p>
+                    <br/>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 40px; text-align: center; mso-number-format:'\\@';">&nbsp;</th>
+                                <th style="mso-number-format:'\\@';">Route</th>
+                                <th style="mso-number-format:'\\@';">Vehicle Category</th>
+                                <th style="mso-number-format:'\\@';">Time Interval</th>
+                                <th style="text-align: right; mso-number-format:'\\@';">Aggregated Count</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRowsHTML}
+                        </tbody>
+                    </table>
+                </body>
+                </html>
+            `;
+
+            // Using application/octet-stream bypasses Excel extension mismatch warnings while preserving formatting
+            res.setHeader('Content-Type', 'application/octet-stream');
+            res.setHeader('Content-Disposition', `attachment; filename=${tallierId}_Analytics_${new Date().toISOString().split('T')[0]}.xls`);
+            res.status(200).send('\ufeff' + excelHTML);
+        });
     });
 });
 
+// Start Server
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
