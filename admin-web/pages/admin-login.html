@@ -8,6 +8,42 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/admin-login.css">
+    <style>
+        body {
+            background-color: #f4f7f6;
+            font-family: 'Inter', sans-serif;
+        }
+        .auth-card {
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            padding: 30px;
+            width: 100%;
+            max-width: 420px;
+        }
+        .auth-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .hidden {
+            display: none !important;
+        }
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            color: #fff;
+            font-weight: 500;
+            z-index: 1000;
+            transition: opacity 0.3s ease;
+        }
+        .toast.success { background-color: #28a745; }
+        .toast.error { background-color: #dc3545; }
+    </style>
 </head>
 <body>
     <div class="auth-container">
@@ -34,12 +70,12 @@
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary">Login to Dashboard</button>
+                <button type="submit" class="btn btn-primary" style="width:100%; padding: 12px; margin-top: 10px;">Login to Dashboard</button>
             </form>
 
-            <div class="auth-footer-links">
+            <div class="auth-footer-links" style="display:flex; justify-content:space-between; margin-top:20px;">
                 <a href="#" onclick="switchView('register-view')">Create Account</a>
-                <a href="#" onclick="switchView('forgot-view')">Forgot Password?</a>
+                <a href="forgot-password.html">Forgot Password?</a>
             </div>
         </div>
 
@@ -69,55 +105,10 @@
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-success">Register Admin Account</button>
+                <button type="submit" class="btn btn-success" style="width:100%; padding: 12px; margin-top: 10px;">Register Admin Account</button>
             </form>
 
-            <div class="auth-footer-links single">
-                <a href="#" onclick="switchView('login-view')">&larr; Back to Login</a>
-            </div>
-        </div>
-
-        <!-- VIEW 3: FORGOT PASSWORD REQUEST -->
-        <div id="forgot-view" class="auth-card hidden">
-            <div class="auth-header">
-                <h2>Reset Password</h2>
-                <p>We will send a 6-digit recovery code to your registered email</p>
-            </div>
-
-            <form id="forgot-form" onsubmit="handleForgotPassword(event)">
-                <div class="form-group">
-                    <label for="forgot-identifier">Admin Username or Email</label>
-                    <input type="text" id="forgot-identifier" placeholder="Enter username or email" required>
-                </div>
-
-                <button type="submit" class="btn btn-dark">Send Reset Code</button>
-            </form>
-
-            <div class="auth-footer-links single">
-                <a href="#" onclick="switchView('login-view')">&larr; Back to Login</a>
-            </div>
-        </div>
-
-        <!-- VIEW 4: ENTER CODE & NEW PASSWORD -->
-        <div id="reset-code-view" class="auth-card hidden">
-            <div class="auth-header">
-                <h2>Enter Reset Code</h2>
-                <p>Check your email for the 6-digit verification code</p>
-            </div>
-
-            <form id="reset-code-form" onsubmit="handleVerifyAndReset(event)">
-                <div class="form-group">
-                    <label for="reset-code">6-Digit Verification Code</label>
-                    <input type="text" id="reset-code" placeholder="123456" maxlength="6" required>
-                </div>
-                <div class="form-group">
-                    <label for="new-password">New Password</label>
-                    <input type="password" id="new-password" placeholder="Enter new password" required>
-                </div>
-                <button type="submit" class="btn btn-success">Update Password</button>
-            </form>
-
-            <div class="auth-footer-links single">
+            <div class="auth-footer-links single" style="margin-top:20px; text-align:center;">
                 <a href="#" onclick="switchView('login-view')">&larr; Back to Login</a>
             </div>
         </div>
@@ -128,13 +119,9 @@
             ? 'http://localhost:3000/api'
             : 'https://your-production-backend-url.com/api';
 
-        let resetIdentifier = '';
-
         function switchView(viewId) {
             document.getElementById('login-view').classList.add('hidden');
             document.getElementById('register-view').classList.add('hidden');
-            document.getElementById('forgot-view').classList.add('hidden');
-            document.getElementById('reset-code-view').classList.add('hidden');
             document.getElementById(viewId).classList.remove('hidden');
         }
 
@@ -155,18 +142,34 @@
             const toast = document.getElementById('toast');
             toast.textContent = message;
             toast.className = `toast ${isError ? 'error' : 'success'}`;
+            toast.classList.remove('hidden');
             setTimeout(() => { toast.classList.add('hidden'); }, 4000);
         }
 
         async function handleLogin(e) {
             e.preventDefault();
-            const usernameInput = document.getElementById('login-username').value.trim();
-            const passwordInput = document.getElementById('login-password').value;
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value;
 
-            // Simplified client-side check or backend API call depending on your architecture
-            // Keeping local fallback or calling standard admin auth
-            showToast('Login successful! Redirecting...');
-            setTimeout(() => { window.location.href = 'admin-dashboard.html'; }, 1000);
+            try {
+                const res = await fetch(`${API_BASE}/admin/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    localStorage.setItem('tts_admin_logged_in', 'true');
+                    localStorage.setItem('tts_admin_id', result.adminId);
+                    localStorage.setItem('tts_admin_username', result.username);
+                    showToast('Login successful! Redirecting...');
+                    setTimeout(() => { window.location.href = 'admin-dashboard.html'; }, 1000);
+                } else {
+                    showToast(result.error || 'Invalid credentials.', true);
+                }
+            } catch (err) {
+                showToast('Network error connecting to server.', true);
+            }
         }
 
         async function handleRegister(e) {
@@ -175,53 +178,21 @@
             const email = document.getElementById('reg-email').value.trim();
             const password = document.getElementById('reg-password').value;
 
-            localStorage.setItem('tts_admin', JSON.stringify({ username, email, password }));
-            showToast('Admin account created successfully!');
-            switchView('login-view');
-        }
-
-        async function handleForgotPassword(e) {
-            e.preventDefault();
-            resetIdentifier = document.getElementById('forgot-identifier').value.trim();
-
             try {
-                const res = await fetch(`${API_BASE}/admin/forgot-password`, {
+                const res = await fetch(`${API_BASE}/admin/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ identifier: resetIdentifier })
+                    body: JSON.stringify({ username, email, password })
                 });
                 const result = await res.json();
                 if (result.success) {
-                    showToast('Reset code sent! Check your email.');
-                    switchView('reset-code-view');
+                    showToast('Admin account created successfully! Please log in.');
+                    switchView('login-view');
                 } else {
-                    showToast(result.error || 'Failed to send reset code.', true);
+                    showToast(result.error || 'Registration failed.', true);
                 }
             } catch (err) {
                 showToast('Network error connecting to server.', true);
-            }
-        }
-
-        async function handleVerifyAndReset(e) {
-            e.preventDefault();
-            const code = document.getElementById('reset-code').value.trim();
-            const newPassword = document.getElementById('new-password').value;
-
-            try {
-                const res = await fetch(`${API_BASE}/admin/reset-password`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ identifier: resetIdentifier, code, newPassword })
-                });
-                const result = await res.json();
-                if (result.success) {
-                    showToast('Password updated successfully! Please log in.');
-                    switchView('login-view');
-                } else {
-                    showToast(result.error || 'Invalid or expired code.', true);
-                }
-            } catch (err) {
-                showToast('Network error updating password.', true);
             }
         }
     </script>

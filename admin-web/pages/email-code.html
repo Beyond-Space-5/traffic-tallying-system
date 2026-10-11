@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enter Verification Code - Traffic Tallying System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .auth-card { background: #ffffff; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); padding: 30px; width: 100%; max-width: 420px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 500; color: #333; }
+        .form-group input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 20px; letter-spacing: 4px; text-align: center; box-sizing: border-box; }
+        .btn { width: 100%; padding: 12px; background: #1d6fa5; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        .btn:hover { background: #15527a; }
+        .toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 6px; color: #fff; font-weight: 500; z-index: 1000; }
+        .toast.success { background-color: #28a745; }
+        .toast.error { background-color: #dc3545; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div id="toast" class="toast hidden"></div>
+    <div class="auth-card">
+        <div style="text-align: center; margin-bottom: 24px;">
+            <h2>Enter Verification Code</h2>
+            <p style="color: #666; font-size: 14px;">Put the 6-digit code received in your email</p>
+        </div>
+        <form onsubmit="handleVerifyCode(event)">
+            <div class="form-group">
+                <label for="code">6-Digit Code</label>
+                <input type="text" id="code" placeholder="123456" maxlength="6" required>
+            </div>
+            <button type="submit" class="btn">Verify Code</button>
+        </form>
+        <div style="text-align: center; margin-top: 20px;">
+            <a href="forgot-password.html" style="color: #1d6fa5; text-decoration: none; font-size: 14px;">&larr; Request a new code</a>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000/api';
+        function showToast(msg, isError = false) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = `toast ${isError ? 'error' : 'success'}`;
+            t.classList.remove('hidden');
+            setTimeout(() => t.classList.add('hidden'), 4000);
+        }
+
+        async function handleVerifyCode(e) {
+            e.preventDefault();
+            const code = document.getElementById('code').value.trim();
+            const identifier = localStorage.getItem('tts_reset_identifier');
+
+            if (!identifier) {
+                showToast('Session expired. Please start over.', true);
+                setTimeout(() => window.location.href = 'forgot-password.html', 1500);
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/admin/verify-code`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ identifier, code })
+                });
+                const result = await res.json();
+                
+                // If correct, it navigates to reset-password.html. Otherwise, it shows an error and blocks navigation.
+                if (result.success) {
+                    showToast('Code verified successfully!');
+                    localStorage.setItem('tts_verified_code', code);
+                    setTimeout(() => { window.location.href = 'reset-password.html'; }, 1000);
+                } else {
+                    showToast(result.error || 'Incorrect code. Please try again.', true);
+                }
+            } catch (err) {
+                showToast('Network error connecting to server.', true);
+            }
+        }
+    </script>
+</body>
+</html>
