@@ -13,48 +13,124 @@
       }
     </script>
     <style>
-        body { display: block; padding: 20px; height: auto; background: #f1f5f9; font-family: sans-serif; }
-        .dashboard-container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 25px; }
-        .nav-buttons { display: flex; gap: 10px; align-items: center; }
-        .btn-tally { background-color: #16a34a; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+        * { box-sizing: border-box; }
+        body { 
+            display: block; 
+            padding: 12px; 
+            height: auto; 
+            background: #f1f5f9; 
+            font-family: 'Inter', sans-serif; 
+            margin: 0;
+            color: #1f2937;
+            -webkit-text-size-adjust: 100%;
+        }
+        .dashboard-container { 
+            width: 100%; 
+            max-width: 480px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 16px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+        }
+        .header { 
+            display: flex; 
+            flex-direction: column; 
+            align-items: flex-start; 
+            border-bottom: 1px solid #e2e8f0; 
+            padding-bottom: 12px; 
+            margin-bottom: 16px; 
+            gap: 12px;
+        }
+        .header h2 {
+            font-size: 1.25rem;
+            margin: 0;
+            color: #0f172a;
+        }
+        .nav-buttons { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 8px; 
+            width: 100%; 
+        }
+        .btn-tally { 
+            background-color: #16a34a; 
+            color: white; 
+            border: none; 
+            padding: 12px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            text-decoration: none; 
+            font-weight: 600; 
+            font-size: 0.85rem; 
+            text-align: center;
+        }
         .btn-tally:hover { background-color: #15803d; }
-        .btn-analytics { background-color: #7c3aed; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+        .btn-analytics { 
+            background-color: #7c3aed; 
+            color: white; 
+            border: none; 
+            padding: 12px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            text-decoration: none; 
+            font-weight: 600; 
+            font-size: 0.85rem; 
+            text-align: center;
+        }
         .btn-analytics:hover { background-color: #6d28d9; }
-        .btn-logout { background-color: #dc2626; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+        .btn-logout { 
+            background-color: #dc2626; 
+            color: white; 
+            border: none; 
+            padding: 12px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-weight: 600; 
+            font-size: 0.85rem; 
+            grid-column: span 2;
+            width: 100%;
+        }
         .btn-logout:hover { background-color: #b91c1c; }
 
-        .section-box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 20px; margin-bottom: 25px; }
-        .section-box h3 { margin-top: 0; color: #1e293b; margin-bottom: 15px; }
+        .section-box { 
+            background: #f8fafc; 
+            border: 1px solid #cbd5e1; 
+            border-radius: 8px; 
+            padding: 14px; 
+            margin-bottom: 16px; 
+        }
+        .section-box h3 { margin-top: 0; color: #1e293b; font-size: 1rem; margin-bottom: 12px; }
 
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.9rem; }
-        .form-group input { width: 100%; padding: 9px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; box-sizing: border-box; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 0.85rem; color: #334155; }
+        .form-group input { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; box-sizing: border-box; background: #fff; }
 
-        .route-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
-        .route-row input { flex: 1; }
-        .btn-remove-route { background-color: #dc2626; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .route-row { display: flex; gap: 6px; margin-bottom: 8px; align-items: center; }
+        .route-row input { flex: 1; padding: 8px; font-size: 0.9rem; min-width: 0; }
+        .btn-remove-route { background-color: #dc2626; color: white; border: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1rem; }
         .btn-remove-route:hover { background-color: #b91c1c; }
 
-        .btn-delete-junction { background-color: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+        .btn-delete-junction { background-color: #ef4444; color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.8rem; }
         .btn-delete-junction:hover { background-color: #dc2626; }
 
-        .btn-secondary { background-color: #475569; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-bottom: 15px; }
+        .btn-secondary { background-color: #475569; color: white; border: none; padding: 10px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; width: 100%; margin-bottom: 10px; font-size: 0.9rem; }
         .btn-secondary:hover { background-color: #334155; }
 
-        .btn-primary { background-color: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; }
+        .btn-primary { background-color: #2563eb; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; font-size: 0.95rem; }
         .btn-primary:hover { background-color: #1d4ed8; }
 
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; border-radius: 6px; overflow: hidden; border: 1px solid #e2e8f0; }
-        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 0.95rem; }
+        .table-wrapper { width: 100%; overflow-x: auto; margin-top: 8px; border-radius: 6px; border: 1px solid #e2e8f0; }
+        table { width: 100%; border-collapse: collapse; background: white; white-space: nowrap; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 0.85rem; }
         th { background-color: #f1f5f9; color: #334155; font-weight: bold; }
         tr:last-child td { border-bottom: none; }
 
-        .tallier-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; }
-        .tallier-info-display { background: #ecfdf5; border: 1px solid #10b981; padding: 15px; border-radius: 6px; margin-bottom: 25px; display: none; }
-        .tallier-info-display h4 { margin: 0 0 8px 0; color: #065f46; }
-        .tallier-info-display p { margin: 4px 0; font-size: 0.9rem; color: #047857; }
-        .btn-edit { background: none; border: none; color: #047857; text-decoration: underline; cursor: pointer; padding: 0; margin-top: 8px; font-weight: bold; }
+        .tallier-grid { display: flex; flex-direction: column; gap: 10px; }
+        .tallier-info-display { background: #ecfdf5; border: 1px solid #10b981; padding: 14px; border-radius: 8px; margin-bottom: 16px; display: none; }
+        .tallier-info-display h4 { margin: 0 0 6px 0; color: #065f46; font-size: 0.95rem; }
+        .tallier-info-display p { margin: 3px 0; font-size: 0.85rem; color: #047857; }
+        .btn-edit { background: none; border: none; color: #047857; text-decoration: underline; cursor: pointer; padding: 0; margin-top: 6px; font-weight: bold; font-size: 0.85rem; }
     </style>
 </head>
 <body>
@@ -62,8 +138,8 @@
         <div class="header">
             <h2>Tallier Configuration</h2>
             <div class="nav-buttons">
-                <a href="#" onclick="handleNavigation(event, 'tallier_analytics.html')" class="btn-analytics">📊 View Analytics</a>
-                <a href="#" onclick="handleNavigation(event, 'tallier_tally.html')" class="btn-tally">Go to Field Tally →</a>
+                <a href="#" onclick="handleNavigation(event, 'tallier_analytics.html')" class="btn-analytics">📊 Analytics</a>
+                <a href="#" onclick="handleNavigation(event, 'tallier_tally.html')" class="btn-tally">Field Tally ➔</a>
                 <button class="btn-logout" onclick="logoutUser()">Log Out</button>
             </div>
         </div>
@@ -87,7 +163,7 @@
                                oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                     </div>
                 </div>
-                <button type="submit" class="btn-primary" style="margin-top: 15px;">Save Tallier Details</button>
+                <button type="submit" class="btn-primary" style="margin-top: 14px;">Save Tallier Details</button>
             </form>
         </div>
 
@@ -104,10 +180,10 @@
             <form id="junction-form" onsubmit="createJunction(event)">
                 <div class="form-group">
                     <label for="junction-name">Junction Name:</label>
-                    <input type="text" id="junction-name" required placeholder="e.g., Kenyatta Avenue Junction">
+                    <input type="text" id="junction-name" required placeholder="e.g., Kenyatta Avenue">
                 </div>
 
-                <label style="display: block; font-weight: 600; margin-bottom: 8px; font-size: 0.9rem;">Define Routes (From ➔ To):</label>
+                <label style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.85rem;">Define Routes (From ➔ To):</label>
                 <div id="routes-container">
                     <div class="route-row">
                         <input type="text" placeholder="From (e.g., Yaya)" class="route-from" required>
@@ -124,26 +200,27 @@
 
         <div class="section-box">
             <h3>Configured Junctions & Routes</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Junction Name</th>
-                        <th>Routes Breakdown</th>
-                        <th>Main Exit</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody id="junctions-table-body">
-                    <tr>
-                        <td colspan="4" style="text-align: center; color: #64748b;">Loading junctions...</td>
-                    </tr>
-                </tbody>
-            </table>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Junction Name</th>
+                            <th>Routes Breakdown</th>
+                            <th>Main Exit</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="junctions-table-body">
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: #64748b;">Loading junctions...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <script>
-        // Use relative path so it automatically works locally and on Render production
         const API_BASE = '/api';
 
         const username = localStorage.getItem('username') || 'guest';

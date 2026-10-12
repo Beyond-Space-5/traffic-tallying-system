@@ -13,6 +13,123 @@
       }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 12px;
+            background-color: #f4f6f9;
+            color: #333333;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-text-size-adjust: 100%;
+        }
+        .dashboard-container {
+            width: 100%;
+            max-width: 480px;
+            margin: 0 auto;
+        }
+        .header-row {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            background-color: #ffffff;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 12px;
+            gap: 12px;
+        }
+        .header-row h2 {
+            font-size: 1.25rem;
+            color: #333333;
+            margin: 0;
+        }
+        .nav-btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            width: 100%;
+        }
+        .nav-btn-group .btn {
+            width: 100%;
+            text-align: center;
+            padding: 10px;
+            font-size: 0.85rem;
+        }
+        .btn-clear-full {
+            grid-column: span 2;
+        }
+        .toolbar-row {
+            background-color: #ffffff;
+            padding: 12px 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 12px;
+            font-size: 0.85rem;
+        }
+        .card {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 12px;
+        }
+        .chart-card h3, .table-card h3 {
+            font-size: 1rem;
+            margin-bottom: 12px;
+            color: #333333;
+        }
+        .chart-container {
+            position: relative;
+            height: 260px;
+            width: 100%;
+        }
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .analytics-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.85rem;
+            white-space: nowrap;
+        }
+        .analytics-table th, 
+        .analytics-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .analytics-table th {
+            background-color: #f8fafc;
+            color: #666666;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+            letter-spacing: 0.5px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 14px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-align: center;
+            text-decoration: none;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .btn-primary { background-color: #1d6fa5; color: #ffffff; }
+        .btn-secondary { background-color: #e2e8f0; color: #334155; }
+        .btn-danger { background-color: #dc3545; color: #ffffff; }
+        .placeholder-text {
+            text-align: center;
+            color: #666666;
+            font-style: italic;
+            padding: 20px !important;
+        }
+    </style>
 </head>
 <body>
 
@@ -20,14 +137,14 @@
     <div class="header-row">
         <h2>Analytics Dashboard</h2>
         <div class="nav-btn-group">
-            <button type="button" onclick="clearAllAnalyticsData()" class="btn" style="background-color: #dc3545; color: white; border: none; cursor: pointer;">Clear All Data</button>
             <a href="tallier_tally.html" class="btn btn-secondary">Back to Tally</a>
             <a href="tallier_configuration.html" class="btn btn-primary">Configuration</a>
+            <button type="button" onclick="clearAllAnalyticsData()" class="btn btn-danger btn-clear-full">Clear All Data</button>
         </div>
     </div>
 
     <div class="toolbar-row">
-        <span class="subtitle" id="userSubtitle">Viewing interval-aggregated traffic counts for: <span id="displayUsername" style="font-weight: bold; color: #1d6fa5;"></span> (Interval: <span id="displayInterval">15</span> mins)</span>
+        <span class="subtitle" id="userSubtitle">Viewing interval traffic counts for: <span id="displayUsername" style="font-weight: bold; color: #1d6fa5;"></span> (Interval: <span id="displayInterval">15</span> mins)</span>
     </div>
 
     <div class="card table-card">
@@ -37,9 +154,9 @@
                     <tr>
                         <th>Junction</th>
                         <th>Route</th>
-                        <th>Vehicle Category</th>
-                        <th>Time Interval</th>
-                        <th style="text-align: right;">Aggregated Count</th>
+                        <th>Category</th>
+                        <th>Interval</th>
+                        <th style="text-align: right;">Count</th>
                     </tr>
                 </thead>
                 <tbody id="analyticsTableBody">
@@ -60,8 +177,8 @@
     </div>
 
     <!-- Interval-Aggregated Line Chart Card -->
-    <div class="card chart-card" style="margin-top: 25px;">
-        <h3>Vehicle Quantity vs. Time (Trendline by Category)</h3>
+    <div class="card chart-card" style="margin-bottom: 0;">
+        <h3>Vehicle Quantity vs. Time Trendline</h3>
         <div class="chart-container">
             <canvas id="tallyLineChart"></canvas>
         </div>
@@ -221,7 +338,7 @@
 
                     html += `
                         <tr>
-                            <td style="text-align: center; width: 40px; color: #888;">↳</td>
+                            <td style="text-align: center; width: 30px; color: #888;">↳</td>
                             <td><strong>${agg.route}</strong></td>
                             <td style="font-weight: bold; color: ${catColor};">${agg.category}</td>
                             <td>${intervalObj.label}</td>
@@ -234,21 +351,21 @@
 
                 html += `
                     <tr style="background-color: #f1f5f9; font-weight: bold; border-top: 2px dashed #1d6fa5;">
-                        <td colspan="4" style="text-align: right; color: #1d6fa5;">[${configIntervalMinutes}-Min Interval Summary - Cumulative Total]:</td>
+                        <td colspan="4" style="text-align: right; color: #1d6fa5;">Interval Total:</td>
                         <td style="text-align: right; color: #1d6fa5; font-weight: bold;">${cumulativeRunningTotal}</td>
                     </tr>
                 `;
-                html += `<tr style="height: 15px;"><td colspan="5" style="border: none; background: transparent;">&nbsp;</td></tr>`;
+                html += `<tr style="height: 10px;"><td colspan="5" style="border: none; background: transparent;">&nbsp;</td></tr>`;
             });
 
-            html += `<tr style="height: 10px;"><td colspan="5" style="border: none; background: transparent;">&nbsp;</td></tr>`;
+            html += `<tr style="height: 5px;"><td colspan="5" style="border: none; background: transparent;">&nbsp;</td></tr>`;
             junctionIndex++;
         }
 
         html += `
             <tr class="overall-total-row" style="background-color: #dcfce7;">
-                <td colspan="4" style="text-align: right; font-weight: bold; font-size: 1.05em; color: #166534;">Overall Total Count:</td>
-                <td style="text-align: right; font-weight: bold; font-size: 1.05em; color: #166534;">${overallTotal}</td>
+                <td colspan="4" style="text-align: right; font-weight: bold; color: #166534;">Overall Total Count:</td>
+                <td style="text-align: right; font-weight: bold; color: #166534;">${overallTotal}</td>
             </tr>
         `;
 
